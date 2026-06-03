@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OCASA · Monitor de Sentimiento</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -148,51 +148,6 @@ tbody tr:hover td{background:var(--surf);}
 .wt{background:var(--surf);border:1px solid var(--bdr);border-radius:5px;padding:3px 10px;font-size:var(--fs,12px);color:var(--tx);font-weight:500;cursor:default;transition:all .15s;}
 .wt:hover{background:var(--td);border-color:var(--teal);color:var(--teal);}
 .stars{color:var(--amb);}
-
-/* ── RESPONSIVE ───────────────────────────────────── */
-@media (max-width: 1100px) {
-  .k5{grid-template-columns:repeat(3,1fr);}
-  .k4{grid-template-columns:repeat(2,1fr);}
-  .g60{grid-template-columns:1fr;}
-  .g2{grid-template-columns:1fr;}
-}
-@media (max-width: 820px) {
-  :root{--nw:0px;}
-  #sb{position:fixed;left:-240px;width:240px;z-index:100;transition:left .25s ease;box-shadow:4px 0 20px rgba(0,0,0,.3);}
-  #sb.open{left:0;}
-  #main{margin-left:0;}
-  #menu-btn{display:flex;}
-  .tbar{padding:0 14px;}
-  .tbar-r .bdg:nth-child(2){display:none;}
-  #fb{padding:7px 14px;gap:6px;}
-  .fbl{display:none;}
-  select.fs{font-size:10.5px;padding:4px 6px;}
-  #ct{padding:16px 14px;}
-  .k5{grid-template-columns:repeat(2,1fr);}
-  .k4{grid-template-columns:repeat(2,1fr);}
-  .g2,.g60{grid-template-columns:1fr;}
-  .cd{padding:14px 16px;}
-  .sh h2{font-size:16px;}
-  .pb-l{min-width:160px;max-width:160px;}
-  #vbtw{font-size:10.5px;}
-  .cw canvas{max-height:200px;}
-  .cw.tl canvas{max-height:240px;}
-  .cw.xl canvas{max-height:260px;}
-}
-@media (max-width: 480px) {
-  .k5,.k4{grid-template-columns:1fr 1fr;}
-  .kv{font-size:20px;}
-  select.fs{max-width:110px;}
-  #freset span{display:none;}
-  .tbar-ttl{font-size:13px;}
-}
-/* Overlay for mobile sidebar */
-#sb-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:99;}
-#sb-overlay.show{display:block;}
-/* Mobile menu button */
-#menu-btn{display:none;align-items:center;justify-content:center;width:34px;height:34px;border:1px solid var(--bdr);border-radius:7px;cursor:pointer;flex-shrink:0;margin-right:8px;background:var(--surf);}
-#menu-btn span{font-size:16px;color:var(--navy);}
-
 </style>
 </head>
 <body>
@@ -200,11 +155,10 @@ tbody tr:hover td{background:var(--surf);}
 <!-- LOADING OVERLAY -->
 <div id="overlay">
   <div class="ov-spinner"></div>
-  <div class="ov-txt">Cargando datos desde Google Sheets…</div>
+  <div class="ov-txt">Cargando datos del origen…</div>
   <div class="ov-sub" id="ov-sub">Conectando…</div>
 </div>
 
-<div id="sb-overlay" onclick="toggleSidebar()"></div>
 <aside id="sb">
   <div class="brd">
     <div class="brd-name">Monitor de Sentimiento de Marca</div>
@@ -223,15 +177,12 @@ tbody tr:hover td{background:var(--surf);}
 
 <div id="main">
   <div id="errbanner">
-    ⚠ No se pudo cargar el Sheet. Verificá que esté publicado como CSV.
+    ⚠ No se pudieron cargar los datos. Verificá la conexión con el origen.
     <a onclick="loadData()">Reintentar</a>
   </div>
 
   <div class="tbar">
-    <div style="display:flex;align-items:center;gap:0;">
-      <div id="menu-btn" onclick="toggleSidebar()"><span>☰</span></div>
-      <div class="tbar-ttl" id="ttl">Vista General</div>
-    </div>
+    <div class="tbar-ttl" id="ttl">Vista General</div>
     <div class="tbar-r">
       <span class="bdg" id="bcnt">–</span>
       <span class="bdg">Google Maps + TuQuejaSuma</span>
@@ -457,7 +408,7 @@ function processRows(rows){
     const yr = ym ? parseInt(ym.substr(0,4)) : 0;
     const mo = ym ? parseInt(ym.substr(5,2)) : 0;
     const stMatch = (r['estrellas']||'').match(/(\d+)/);
-    const st = stMatch ? parseInt(stMatch[1]) : null;
+    const st = stMatch ? parseInt(stMatch[1]) : 0;
     return {
       f: fecha, ym, yr, mo,
       au: (r['autor']||'Anónimo').substr(0,30),
@@ -475,7 +426,7 @@ function processRows(rows){
 
 // ── DATA LOAD ─────────────────────────────────
 async function loadData(){
-  showOverlay('Conectando con Google Sheets…');
+  showOverlay('Cargando datos del origen…');
   setRefreshLoading(true);
   hideError();
   try {
@@ -585,11 +536,10 @@ function rnOV(){
   const neg=d.filter(r=>r.se==='Negativo').length;
   const pos=d.filter(r=>r.se==='Positivo').length;
   const neu=d.filter(r=>r.se==='Neutro').length;
-  const rated=d.filter(r=>r.st!==null&&r.st>0);
-  const det=d.filter(r=>r.st!==null&&r.st<=2).length;
-  const pro=d.filter(r=>r.st!==null&&r.st>=4).length;
+  const det=d.filter(r=>r.st<=2).length;
+  const pro=d.filter(r=>r.st>=4).length;
   const nps=((pro-det)/n*100).toFixed(1);
-  const avg=rated.length?(rated.reduce((a,r)=>a+r.st,0)/rated.length).toFixed(2):'–';
+  const avg=(d.reduce((a,r)=>a+r.st,0)/n).toFixed(2);
   document.getElementById('k-tot').textContent=n.toLocaleString('es');
   document.getElementById('k-nps').textContent=(nps>0?'+':'')+nps;
   document.getElementById('k-nps2').textContent='Det. '+(det/n*100).toFixed(1)+'% · Pro. '+(pro/n*100).toFixed(1)+'%';
@@ -598,7 +548,6 @@ function rnOV(){
   document.getElementById('k-pos').textContent=(pos/n*100).toFixed(1)+'%';
   document.getElementById('k-pos2').textContent=pos.toLocaleString('es')+' reviews';
   document.getElementById('k-st').textContent=avg;
-  document.querySelector('#kpi-ov .kc.amb .ks').textContent='★ sobre 5.0 · '+rated.length.toLocaleString('es')+' con rating';
   mkC('cSent',{type:'doughnut',data:{labels:['Negativo','Positivo','Neutro'],datasets:[{data:[neg,pos,neu],backgroundColor:['#E53E3E','#059669','#D97706'],borderWidth:0,hoverOffset:5}]},options:{cutout:'65%',plugins:{legend:{position:'right'},tooltip:{callbacks:{label:c=>`${c.label}: ${c.raw.toLocaleString('es')} (${(c.raw/n*100).toFixed(1)}%)`}}}}});
   const gm=d.filter(r=>r.fu==='google_maps').length;
   const tqs=d.filter(r=>r.fu==='tuquejasuma').length;
@@ -765,7 +714,7 @@ function rnVB(){
     <td>${CL_LABEL[r.cn]||r.cn}</td><td>${r.sv}</td>
     <td style="max-width:140px;white-space:normal;">${r.pd}</td>
     <td><span class="pl ${SP[r.se]||''}">${r.se}</span></td>
-    <td><span class="stars">${r.st?'★'.repeat(r.st):'–'}</span></td>
+    <td><span class="stars">${'★'.repeat(r.st)}</span></td>
     <td style="font-size:11px;color:var(--tx2);max-width:320px;white-space:normal;line-height:1.45;">${r.rv}</td>
   </tr>`).join('');
   if(d.length>500){const tr=document.createElement('tr');tr.innerHTML=`<td colspan="10" style="text-align:center;padding:12px;color:var(--mu);font-size:11px;">Mostrando 500 de ${d.length.toLocaleString('es')}. Descargá Excel para el set completo.</td>`;document.getElementById('vbb').appendChild(tr);}
@@ -778,28 +727,12 @@ function dlXL(){
   XLSX.utils.book_append_sheet(wb,ws,'Reviews OCASA');XLSX.writeFile(wb,'OCASA_Reviews.xlsx');
 }
 
-
-// ── MOBILE SIDEBAR ────────────────────────────
-function toggleSidebar(){
-  const sb=document.getElementById('sb');
-  const ov=document.getElementById('sb-overlay');
-  const open=sb.classList.toggle('open');
-  ov.classList.toggle('show',open);
-}
-// Close sidebar on nav item click (mobile)
-document.addEventListener('DOMContentLoaded',()=>{
-  document.querySelectorAll('.ni').forEach(n=>{
-    n.addEventListener('click',()=>{
-      if(window.innerWidth<=820){
-        document.getElementById('sb').classList.remove('open');
-        document.getElementById('sb-overlay').classList.remove('show');
-      }
-    });
-  });
-});
-
 // ── INIT ─────────────────────────────────────
-loadData();
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded',loadData);
+}else{
+  loadData();
+}
 </script>
 </body>
 </html>
