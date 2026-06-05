@@ -273,7 +273,7 @@ tbody tr:hover td{background:var(--surf);}
  
 <div id="overlay">
   <div class="ov-spinner"></div>
-  <div class="ov-txt">Cargando datos desde Google Sheets…</div>
+  <div class="ov-txt">Cargando datos desde el origen…</div>
   <div class="ov-sub" id="ov-sub">Conectando…</div>
 </div>
  
@@ -298,7 +298,7 @@ tbody tr:hover td{background:var(--surf);}
  
 <div id="main">
   <div id="errbanner">
-    ⚠ No se pudo cargar el Sheet. Verificá que esté publicado como CSV.
+    ⚠ No se pudo cargar el Origen. Verificá que esté publicado con el formato requerido.
     <a onclick="loadData()">Reintentar</a>
   </div>
  
@@ -521,7 +521,7 @@ function closeSB(){
  
 // ── DATA LOAD ─────────────────────────────────
 async function loadData(){
-  showOverlay('Conectando con Google Sheets…');
+  showOverlay('Conectando con el origen de datos');
   setRefreshLoading(true);
   hideError();
   try{
