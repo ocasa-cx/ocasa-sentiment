@@ -1,1 +1,941 @@
-placeholder
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OCASA · Social Listening</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+:root{
+  --navy:#0E1B2E;--blue:#2563a8;--blue-light:#deeaf8;--blue-mid:#4a88c7;
+  --gray50:#f8f9fa;--gray100:#f1f3f4;--gray200:#e8eaed;--gray300:#dadce0;
+  --gray400:#9aa0a6;--gray500:#6e7478;--gray600:#5f6368;--gray700:#444;
+  --white:#fff;--border:#e0e0e0;--text:#202124;
+  --teal:#00A499;--teal-light:#e8f6f5;
+  --shadow:0 1px 2px rgba(0,0,0,.08);--shadow-md:0 3px 10px rgba(0,0,0,.1);
+  --radius:8px;--sidebar:250px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#f0f2f5;color:var(--text);font-size:13px;display:flex;min-height:100vh}
+.sidebar{width:var(--sidebar);background:var(--navy);min-height:100vh;position:fixed;left:0;top:0;display:flex;flex-direction:column;z-index:100}
+.sb-brand{padding:1.25rem 1.5rem 1rem;border-bottom:1px solid rgba(255,255,255,.07)}
+.sb-brand h2{font-size:12px;font-weight:700;color:white;text-transform:uppercase;line-height:1.4}
+.sb-brand p{font-size:10px;color:rgba(255,255,255,.35);text-transform:uppercase;letter-spacing:.08em;margin-top:4px}
+.sb-item{display:flex;align-items:center;gap:10px;padding:.6rem 1.5rem;cursor:pointer;transition:all .15s;color:rgba(255,255,255,.5);font-size:12.5px;border-left:2px solid transparent}
+.sb-item:hover{background:rgba(255,255,255,.05);color:rgba(255,255,255,.8)}
+.sb-item.active{background:rgba(0,164,153,.1);color:#4ecfc9;border-left-color:#4ecfc9}
+.sb-footer{margin-top:auto;padding:1rem 1.5rem;border-top:1px solid rgba(255,255,255,.07);font-size:10px;color:rgba(255,255,255,.25);line-height:1.7}
+.main{margin-left:var(--sidebar);flex:1;display:flex;flex-direction:column}
+.topbar{background:var(--white);border-bottom:1px solid var(--border);padding:.75rem 1.75rem;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50}
+.topbar-title{font-size:15px;font-weight:600;color:var(--navy)}
+.tb-right{display:flex;align-items:center;gap:8px}
+.tb-chip{background:var(--gray100);color:var(--gray600);font-size:11px;padding:3px 10px;border-radius:99px;border:1px solid var(--border)}
+.tb-date{font-size:11px;color:var(--gray400)}
+.content{padding:1.25rem 1.75rem 3rem}
+.page{display:none}.page.active{display:block}
+.kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:1.25rem}
+.kpi{background:var(--white);border-radius:var(--radius);padding:.875rem 1.1rem;border:1px solid var(--border)}
+.kpi-lbl{font-size:10px;color:var(--gray500);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.kpi-val{font-size:24px;font-weight:700;color:var(--navy);line-height:1}
+.kpi-sub{font-size:10px;color:var(--gray400);margin-top:3px}
+.card{background:var(--white);border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;margin-bottom:1.25rem}
+.card-head{padding:.8rem 1.1rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.card-title{font-size:10.5px;font-weight:700;color:var(--gray600);text-transform:uppercase;letter-spacing:.06em}
+.card-body{padding:1.1rem}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;margin-bottom:1.25rem}
+.alert{background:var(--gray50);border:1px solid var(--border);border-radius:var(--radius);padding:.75rem 1rem;margin-bottom:1.25rem;display:flex;gap:10px;font-size:12px;color:var(--gray700);line-height:1.6}
+.sec-lbl{font-size:9.5px;font-weight:700;color:var(--gray500);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.75rem;display:flex;align-items:center;gap:8px}
+.sec-lbl::after{content:'';flex:1;height:1px;background:var(--border)}
+#latam-map-wrap{width:100%;height:480px;position:relative;background:#eef3f6;overflow:hidden;border-radius:0 0 var(--radius) var(--radius)}
+.map-tt{position:absolute;background:var(--white);border:1px solid var(--border);border-radius:8px;padding:10px 14px;pointer-events:none;display:none;box-shadow:var(--shadow-md);min-width:210px;max-width:240px;z-index:99;font-size:12px}
+.map-tt h4{font-size:13px;font-weight:700;color:var(--navy);margin-bottom:6px;display:flex;align-items:center;gap:7px}
+.map-tt .tt-meta{font-size:11px;color:var(--gray400);margin-bottom:8px}
+.map-tt .tt-sec{font-size:10px;font-weight:700;color:var(--gray500);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px}
+.map-tt .tt-row{display:flex;gap:6px;margin-bottom:3px}
+.map-tt .tt-n{font-weight:700;color:var(--teal);min-width:20px}
+.map-tt .tt-f{color:var(--gray700)}
+.map-zoom{position:absolute;top:10px;right:10px;z-index:20;display:flex;flex-direction:column;gap:3px}
+.zoom-btn{width:26px;height:26px;border-radius:5px;border:1px solid var(--border);background:var(--white);cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;color:var(--gray600)}
+.map-legend{display:flex;gap:12px;padding:.6rem 1.1rem;border-top:1px solid var(--border);flex-wrap:wrap;font-size:10.5px;color:var(--gray500)}
+.leg-item{display:flex;align-items:center;gap:4px}
+.leg-dot{width:10px;height:10px;border-radius:2px}
+.pill{display:inline-block;padding:3px 10px;border-radius:3px;font-size:11px;font-weight:600;white-space:nowrap;text-align:center;min-width:58px}
+.pill-muyalto{background:#e8504a;color:#5a0a07}
+.pill-alto{background:#d4e4f7;color:#0d3d6e}
+.pill-alta{background:#f4c07a;color:#5a2d00}
+.pill-media{background:#c5dba0;color:#274a10}
+.ft{width:100%;border-collapse:collapse}
+.ft thead tr{background:var(--gray50);border-bottom:1px solid var(--gray300)}
+.ft th{padding:8px 12px;text-align:left;font-size:10px;font-weight:600;color:var(--gray500);letter-spacing:.04em;white-space:nowrap;border-right:1px solid var(--gray200)}
+.ft th:last-child{border-right:none}
+.ft td{padding:8px 12px;border-bottom:1px solid var(--gray100);border-right:1px solid var(--gray100);vertical-align:middle;font-size:12px;color:var(--gray700)}
+.ft td:last-child{border-right:none}
+.ft tr:last-child td{border-bottom:none}
+.ft tr:hover td{background:var(--gray50)}
+.ft .fn{font-weight:500;color:var(--navy);font-size:12.5px}
+.ft .fres{color:var(--gray500);font-size:11.5px;line-height:1.6;max-width:400px;min-width:280px;white-space:normal;word-wrap:break-word}
+.matrix{display:grid;grid-template-columns:70px 1fr 1fr;grid-template-rows:24px 1fr 1fr;gap:5px}
+.m-hdr{font-size:10px;font-weight:600;color:var(--gray500);text-align:center;display:flex;align-items:center;justify-content:center}
+.m-lbl{font-size:10px;color:var(--gray500);display:flex;align-items:center;justify-content:flex-end;padding-right:8px;text-align:right;line-height:1.3}
+.mc{border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12px 8px;text-align:center;border:1px solid transparent}
+.mc-n{font-size:24px;font-weight:700;line-height:1}
+.mc-l{font-size:10px;margin-top:2px}
+.mc-aa{background:#fbe9e7;border-color:#f5b7b1}.mc-aa .mc-n{color:#c0392b}.mc-aa .mc-l{color:#e74c3c}
+.mc-am{background:#fef9ee;border-color:#fad7a0}.mc-am .mc-n{color:#d97706}.mc-am .mc-l{color:#b45309}
+.mc-ma{background:#eaf1fb;border-color:#aec6e8}.mc-ma .mc-n{color:#2563a8}.mc-ma .mc-l{color:#4a88c7}
+.mc-mm{background:var(--gray100);border-color:var(--border)}.mc-mm .mc-n{color:var(--gray600)}.mc-mm .mc-l{color:var(--gray400)}
+.comp-card{background:var(--white);border-radius:var(--radius);border:1px solid var(--border);padding:1rem 1.1rem}
+.comp-src{font-size:9.5px;font-weight:700;color:var(--gray400);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px}
+.comp-topico{font-size:12.5px;font-weight:600;color:var(--navy);margin-bottom:5px;line-height:1.4}
+.comp-res{font-size:11.5px;color:var(--gray500);line-height:1.6}
+.comp-tags{display:flex;gap:4px;margin-top:8px;flex-wrap:wrap}
+.chip{display:inline-block;padding:2px 7px;border-radius:3px;font-size:10.5px;border:1px solid var(--border);background:var(--gray50);color:var(--gray600)}
+.new-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:1.25rem}
+.new-card{background:var(--gray50);border-radius:var(--radius);padding:.75rem 1rem;border:1px solid var(--border);border-left:2px solid var(--blue-mid)}
+.nc-name{font-size:12px;font-weight:600;color:var(--navy);margin-bottom:3px;line-height:1.3}
+.nc-pais{font-size:11px;color:var(--gray400)}
+.nc-imp{font-size:11px;color:var(--gray500);margin-top:4px}
+.dl{display:flex;align-items:center;gap:7px;font-size:11.5px;margin-bottom:6px}
+.dl-dot{width:9px;height:9px;border-radius:2px;flex-shrink:0}
+.pb-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.pb-lbl{font-size:11.5px;color:var(--gray600);min-width:70px}
+.pb-track{flex:1;height:7px;background:var(--gray200);border-radius:4px;overflow:hidden}
+.pb-fill{height:100%;border-radius:4px}
+.pb-n{font-size:11.5px;font-weight:600;color:var(--navy);min-width:22px;text-align:right}
+.fb{padding:3px 11px;border-radius:99px;border:1px solid var(--border);background:var(--white);font-size:11px;cursor:pointer;color:var(--gray600);transition:all .15s}
+.fb.active{background:var(--navy);color:white;border-color:var(--navy)}
+.fl{font-size:11px;color:var(--gray500);font-weight:500}
+.chart-wrap{position:relative;height:200px}
+.ft tbody tr:hover td{background:#f1f5fb !important}
+.sel{padding:4px 10px;border-radius:99px;border:1px solid var(--border);background:var(--white);font-size:11px;color:var(--gray600);cursor:pointer;outline:none;max-width:170px}
+.sel:focus{border-color:var(--blue)}
+#fb{background:var(--white);border-bottom:1px solid var(--border);padding:7px 24px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;flex-shrink:0}
+#fb.hidden{display:none}
+.fbl{font-size:9.5px;font-weight:700;color:var(--gray400);text-transform:uppercase;letter-spacing:1px;white-space:nowrap}
+select.fs{font-family:'Segoe UI',system-ui,sans-serif;font-size:11px;color:var(--text);background:var(--gray50);border:1px solid var(--border);border-radius:6px;padding:5px 8px;cursor:pointer;outline:none;transition:border-color .18s}
+select.fs:hover,select.fs:focus{border-color:var(--teal)}
+.fsep{width:1px;height:16px;background:var(--border)}
+#freset{font-family:'Segoe UI',system-ui,sans-serif;font-size:11px;color:var(--gray400);cursor:pointer;background:none;border:1px solid var(--border);border-radius:6px;padding:5px 9px;transition:all .18s}
+#freset:hover{border-color:var(--teal);color:var(--teal)}
+.btn-refresh{font-family:'Segoe UI',system-ui,sans-serif;font-size:11px;font-weight:600;background:none;color:var(--teal);border:1px solid var(--teal);border-radius:6px;padding:5px 11px;cursor:pointer;transition:all .18s;display:flex;align-items:center;gap:5px}
+.btn-refresh:hover{background:rgba(0,164,153,.08)}
+#overlay{position:fixed;inset:0;background:rgba(14,27,46,.7);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;gap:16px}
+#overlay.hidden{display:none}
+.ov-spinner{width:40px;height:40px;border:3px solid rgba(0,164,153,.3);border-top-color:var(--teal);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ov-txt{font-size:13px;color:rgba(255,255,255,.7);font-weight:500}
+.ov-sub{font-size:11px;color:rgba(255,255,255,.4)}
+#errbanner{background:#7f1d1d;color:#fca5a5;font-size:12px;padding:10px 24px;display:none;align-items:center;gap:10px;flex-shrink:0}
+.sec{display:none;animation:fi .22s ease}
+.sec.on{display:block}
+@keyframes fi{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+.sh h2{font-size:17px;font-weight:700;color:var(--navy);letter-spacing:-.3px}
+.sh p{font-size:12px;color:var(--gray600);margin-top:3px}
+.sh{margin-bottom:16px}
+.kg{display:grid;gap:12px;margin-bottom:16px}
+.k5{grid-template-columns:repeat(5,1fr)}
+.k4{grid-template-columns:repeat(4,1fr)}
+.kc{background:var(--white);border:1px solid var(--border);border-radius:8px;padding:16px 14px}
+.kl{font-size:9px;font-weight:600;color:var(--gray400);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:8px}
+.kv{font-size:28px;font-weight:700;color:var(--text);line-height:1;letter-spacing:-1px}
+.ks{font-size:10px;color:var(--gray400);margin-top:5px;line-height:1.4}
+.g2s{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.g60s{display:grid;grid-template-columns:1.5fr 1fr;gap:14px;margin-bottom:14px}
+.cd{background:var(--white);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-bottom:14px}
+.cd:last-child{margin-bottom:0}
+.ct2{font-size:10px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.9px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.ct2 span{color:var(--gray400);font-weight:400;text-transform:none;letter-spacing:0;font-size:10px}
+.cw canvas{max-height:210px}
+.cw.tl canvas{max-height:270px}
+.cw.xl canvas{max-height:320px}
+.pb-s{display:flex;align-items:center;gap:8px;margin-bottom:7px;cursor:pointer;padding:2px 3px;border-radius:4px;transition:background .15s}
+.pb-s:hover{background:var(--gray50)}
+.pb-l{font-size:11px;color:var(--text);min-width:200px;max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pb-t{flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden}
+.pb-f{height:100%;border-radius:3px;background:#e53e3e}
+.pb-f.a{background:#d97706}.pb-f.t{background:var(--teal)}
+.pb-n{font-size:10px;font-weight:600;color:var(--gray600);min-width:34px;text-align:right;font-family:monospace}
+.pb-p{font-size:9.5px;color:var(--gray400);min-width:30px;text-align:right;font-family:monospace}
+.pl{display:inline-block;padding:2px 7px;border-radius:20px;font-size:9px;font-weight:600;white-space:nowrap}
+.pl.red{background:rgba(229,62,62,.1);color:#e53e3e}
+.pl.amb{background:rgba(217,119,6,.1);color:#d97706}
+.pl.grn{background:rgba(5,150,105,.1);color:#059669}
+.rv{background:var(--white);border:1px solid var(--border);border-radius:8px;padding:11px 13px;margin-bottom:7px;border-left:3px solid #e53e3e}
+.rv.pos{border-left-color:#059669}
+.rv-h{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px}
+.rv-a{font-size:12px;font-weight:600;color:var(--navy)}
+.rv-m{font-size:9.5px;color:var(--gray400);display:flex;gap:6px}
+.rv-tx{font-size:11.5px;color:var(--gray600);line-height:1.55}
+.rv-tgs{margin-top:5px;display:flex;gap:4px;flex-wrap:wrap}
+.rv-tg{font-size:9px;background:var(--gray50);border:1px solid var(--border);border-radius:20px;padding:2px 7px;color:var(--gray600)}
+#rvl,#rvcl{max-height:440px;overflow-y:auto;padding-right:2px}
+.rv-empty{padding:26px;text-align:center;color:var(--gray400);font-size:12.5px}
+.mxw{overflow-x:auto}
+.mxt{border-collapse:collapse;font-size:10px;white-space:nowrap;width:100%}
+.mxt th{font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;padding:5px 7px;border:1px solid var(--border);background:var(--gray50);color:var(--gray400)}
+.mxt td{padding:4px 7px;border:1px solid var(--border);text-align:center;font-weight:600;font-family:monospace;font-size:10.5px}
+.mxt .rh{text-align:left;font-weight:600;color:var(--text);background:var(--gray50);font-family:'Segoe UI',system-ui;font-size:11px}
+.mc0{color:var(--gray400);font-weight:400}
+.ins{background:var(--white);border:1px solid var(--border);border-left:3px solid var(--teal);border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:11.5px;color:var(--gray600);line-height:1.6}
+.ins strong{color:var(--teal)}
+.alr{background:var(--white);border:1px solid var(--border);border-radius:8px;padding:12px 16px;margin-bottom:14px;font-size:11.5px;color:var(--gray600);line-height:1.6}
+.alr strong{color:#d97706;font-weight:700}
+.note{background:rgba(154,171,190,.07);border:1px solid var(--border);border-radius:8px;padding:9px 13px;margin-bottom:12px;font-size:11px;color:var(--gray400);line-height:1.5}
+.note strong{color:var(--gray600)}
+#vbc{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+#vbs{flex:1;min-width:160px;font-family:'Segoe UI',system-ui;font-size:11.5px;border:1px solid var(--border);border-radius:6px;padding:6px 11px;outline:none;background:var(--gray50)}
+#vbs:focus{border-color:var(--teal)}
+.btn-dl{font-family:'Segoe UI',system-ui;font-size:11px;font-weight:600;background:var(--teal);color:#fff;border:none;border-radius:6px;padding:6px 14px;cursor:pointer;transition:opacity .18s}
+.btn-dl:hover{opacity:.85}
+#vbcnt{font-size:10.5px;color:var(--gray400)}
+#vbtw{overflow-x:auto;max-height:480px;overflow-y:auto;border:1px solid var(--border);border-radius:8px}
+#vbt thead th{position:sticky;top:0;z-index:2}
+.cb{display:flex;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)}
+.cb:last-child{border-bottom:none}
+.cb-n{font-size:11.5px;font-weight:500;color:var(--text);min-width:148px}
+.cb-n.dim{color:var(--gray400);font-style:italic}
+.cb-t{flex:1;margin:0 10px;height:5px;background:var(--border);border-radius:3px;overflow:hidden}
+.cb-f{height:100%;border-radius:3px}
+.cb-v{font-size:10.5px;font-weight:600;color:var(--gray600);font-family:monospace;min-width:32px;text-align:right}
+.cl-sec-hdr{font-size:9px;font-weight:700;color:var(--gray400);text-transform:uppercase;letter-spacing:1.4px;padding:9px 0 4px;border-bottom:1px solid var(--border);margin-bottom:4px}
+.wc{display:flex;flex-wrap:wrap;gap:5px;padding:2px 0}
+.wt{background:var(--gray50);border:1px solid var(--border);border-radius:5px;padding:3px 9px;font-size:var(--fs,12px);color:var(--text);font-weight:500;cursor:default;transition:all .15s}
+.wt:hover{background:rgba(0,164,153,.08);border-color:var(--teal);color:var(--teal)}
+.stars{color:#d97706}
+.kvred{color:#e53e3e !important}
+.kvgrn{color:#059669 !important}
+.kvamb{color:#d97706 !important}
+body{overflow:hidden}
+.main{overflow:hidden;height:100vh;display:flex;flex-direction:column}
+.content{flex:1;overflow-y:auto;padding:0}
+.page.active{display:flex;flex-direction:column;min-height:100%}
+.sb-divider{height:1px;background:rgba(255,255,255,.07);margin:.5rem 0}
+.sb-group-lbl{padding:.875rem 1.5rem .3rem;font-size:9px;font-weight:700;color:rgba(255,255,255,.35);text-transform:uppercase;letter-spacing:.12em}
+#sent-wrapper{display:flex;flex-direction:column;height:100%}
+#sent-wrapper.active{display:flex}
+#fb{flex-shrink:0}
+</style>
+</head>
+<body>
+
+<div id="overlay" class="hidden">
+  <div class="ov-spinner"></div>
+  <div class="ov-txt">Cargando datos&hellip;</div>
+  <div class="ov-sub" id="ov-sub">Conectando&hellip;</div>
+</div>
+
+<aside class="sidebar">
+  <div class="sb-brand">
+    <h2>Social Listening</h2>
+    <p>Customer Intelligence &middot; Gerencia CX</p>
+  </div>
+  <div class="sb-group-lbl">An&aacute;lisis de Sentimiento</div>
+  <div class="sb-item" id="nav-ov" onclick="goSent('ov',this)">Vista General</div>
+  <div class="sb-item" id="nav-pd" onclick="goSent('pd',this)">Puntos de Dolor</div>
+  <div class="sb-item" id="nav-cl" onclick="goSent('cl',this)">Clientes</div>
+  <div class="sb-item" id="nav-rv" onclick="goSent('rv',this)">Detalle Reviews</div>
+  <div class="sb-divider"></div>
+  <div class="sb-group-lbl">Inteligencia Competitiva</div>
+  <div class="sb-item active" id="nav-overview" onclick="showPage('overview')">Resumen Ejecutivo</div>
+  <div class="sb-item" id="nav-features" onclick="showPage('features')">Features &amp; Tendencias</div>
+  <div class="sb-item" id="nav-signals" onclick="showPage('signals')">Detalle Se&ntilde;ales</div>
+  <div class="sb-footer" id="sb-footer">
+    Customer Intelligence<br>Gerencia CX &middot; OCASA<br>
+    <span id="sftr-count">&ndash;</span><br>
+    <span id="sftr-updated">&ndash;</span>
+  </div>
+</aside>
+
+<div class="main">
+  <div class="topbar">
+    <div id="topbar-title" class="topbar-title">Resumen Ejecutivo</div>
+    <div class="tb-right">
+      <span class="tb-chip" id="tb-chip">Cargando&hellip;</span>
+      <span class="tb-date" id="tb-date"></span>
+      <button class="btn-refresh" onclick="loadSentData()">&#8635; Actualizar</button>
+    </div>
+  </div>
+  <div id="errbanner">&#9888; No se pudo cargar el Sheet.</div>
+
+  <div class="content">
+
+    <!-- OVERVIEW -->
+    <div class="page active" id="page-overview">
+      <div style="padding:1.25rem 1.75rem 3rem">
+        <div class="kpi-row" id="kpi-row"></div>
+        <div class="alert"><span style="font-size:15px;flex-shrink:0">&#9888;</span><div id="alert-text">Cargando&hellip;</div></div>
+        <div class="grid2">
+          <div class="card" style="margin-bottom:0">
+            <div class="card-head">
+              <span class="card-title">Distribuci&oacute;n de se&ntilde;ales &middot; LATAM</span>
+              <span style="font-size:10px;color:var(--gray400)">Hover para features</span>
+            </div>
+            <div id="latam-map-wrap">
+              <div class="map-tt" id="map-tt"></div>
+              <div class="map-zoom">
+                <button class="zoom-btn" id="zi">+</button>
+                <button class="zoom-btn" id="zo">&minus;</button>
+                <button class="zoom-btn" id="zr" style="font-size:11px">&#8857;</button>
+              </div>
+            </div>
+            <div class="map-legend" id="map-legend"></div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:1.1rem">
+            <div class="card" style="margin-bottom:0">
+              <div class="card-head"><span class="card-title">Matriz impacto &times; urgencia</span></div>
+              <div class="card-body" id="matrix-body"></div>
+            </div>
+            <div class="card" style="margin-bottom:0;flex:1">
+              <div class="card-head"><span class="card-title">&Aacute;reas internas impactadas</span></div>
+              <div class="card-body" style="display:flex;gap:1rem;align-items:center">
+                <div style="position:relative;width:100px;height:100px;flex-shrink:0"><canvas id="areaChart"></canvas></div>
+                <div id="area-legend"></div>
+              </div>
+            </div>
+            <div class="card" style="margin-bottom:0">
+              <div class="card-head"><span class="card-title">Se&ntilde;ales por pa&iacute;s</span></div>
+              <div class="card-body" id="pais-bars"></div>
+            </div>
+          </div>
+        </div>
+        <div class="sec-lbl">Top 10 features accionables</div>
+        <div class="card"><div style="overflow-x:auto">
+          <table class="ft"><thead><tr>
+            <th style="width:24px;text-align:center">#</th><th>Feature / T&oacute;pico</th>
+            <th style="text-align:center">Se&ntilde;ales</th><th style="text-align:center">Urgencia</th>
+            <th style="text-align:center">Impacto</th><th>Segmento</th><th>Resumen</th>
+          </tr></thead><tbody id="top10-tbody"></tbody></table>
+        </div></div>
+        <div class="sec-lbl">Competidores directos &middot; Argentina</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.25rem" id="comp-grid"></div>
+        <div class="sec-lbl">Features nuevas detectadas</div>
+        <div class="new-grid" id="new-grid"></div>
+      </div>
+    </div>
+
+    <!-- FEATURES -->
+    <div class="page" id="page-features">
+      <div style="padding:1.25rem 1.75rem 3rem">
+        <div class="grid2">
+          <div class="card">
+            <div class="card-head"><span class="card-title">Se&ntilde;ales por feature &middot; top 10</span></div>
+            <div class="card-body"><div style="position:relative;height:260px"><canvas id="featBar"></canvas></div></div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:1.1rem">
+            <div class="card" style="margin-bottom:0">
+              <div class="card-head"><span class="card-title">Distribuci&oacute;n vertical</span></div>
+              <div class="card-body"><div class="chart-wrap"><canvas id="vertChart"></canvas></div></div>
+            </div>
+            <div class="card" style="margin-bottom:0">
+              <div class="card-head"><span class="card-title">Presencia geogr&aacute;fica &middot; muy alto impacto</span></div>
+              <div class="card-body" id="geo-pres"></div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head">
+            <span class="card-title">Todas las features detectadas</span>
+            <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap">
+              <span class="fl">Impacto:</span>
+              <button class="fb active" onclick="fImp('all',this)">Todos</button>
+              <button class="fb" onclick="fImp('muy_alto',this)">Muy alto</button>
+              <button class="fb" onclick="fImp('alto',this)">Alto</button>
+              <span class="fl" style="margin-left:6px">Tendencia:</span>
+              <button class="fb active" id="f-tall" onclick="fTend('all',this)">Todas</button>
+              <button class="fb" id="f-tnew" onclick="fTend('nueva',this)">Nuevas</button>
+              <button class="fb" id="f-tdwn" onclick="fTend('bajando',this)">Bajando</button>
+            </div>
+          </div>
+          <div style="overflow-x:auto">
+            <table class="ft"><thead><tr>
+              <th>Feature</th><th style="text-align:center">Se&ntilde;ales</th>
+              <th style="text-align:center">Impacto</th><th style="text-align:center">Urgencia</th>
+              <th>Tendencia</th><th>Pa&iacute;ses</th><th>Fuentes</th>
+            </tr></thead><tbody id="feat-tbody"></tbody></table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SIGNALS — UN SOLO BOTÓN -->
+    <div class="page" id="page-signals">
+      <div style="padding:1.25rem 1.75rem 3rem">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
+          <div style="font-size:10px;font-weight:700;color:var(--gray500);text-transform:uppercase;letter-spacing:.06em">Detalle Se&ntilde;ales LATAM</div>
+          <button onclick="dlSignalsXL()" style="font-family:'Segoe UI',system-ui;font-size:11px;font-weight:600;background:var(--teal);color:#fff;border:none;border-radius:6px;padding:6px 14px;cursor:pointer;display:flex;align-items:center;gap:6px" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">&darr; Exportar Excel</button>
+        </div>
+        <div id="sig-filters" style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:.875rem 1.1rem;margin-bottom:1.25rem;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+          <span style="font-size:10px;font-weight:700;color:var(--gray500);text-transform:uppercase;letter-spacing:.06em">Filtros</span>
+          <select id="f-pais" class="sel" onchange="applySignalFilters()"><option value="">Todos los pa&iacute;ses</option><option value="Argentina">Argentina</option><option value="Brasil">Brasil</option><option value="Chile">Chile</option><option value="Colombia">Colombia</option><option value="M&eacute;xico">M&eacute;xico</option><option value="Per&uacute;">Per&uacute;</option><option value="Regional">Regional</option></select>
+          <select id="f-impact" class="sel" onchange="applySignalFilters()"><option value="">Todo impacto</option><option value="muy_alto">Muy alto</option><option value="alto">Alto</option></select>
+          <select id="f-urgencia" class="sel" onchange="applySignalFilters()"><option value="">Toda urgencia</option><option value="alta">Alta</option><option value="media">Media</option></select>
+          <select id="f-vertical" class="sel" onchange="applySignalFilters()"><option value="">Todos los segmentos</option><option value="Agroindustria">Agroindustria</option><option value="Ecommerce grande">Ecommerce grande</option><option value="Import / Export">Import / Export</option><option value="Log&iacute;stica general">Log&iacute;stica general</option><option value="Manufactura">Manufactura</option><option value="Miner&iacute;a">Miner&iacute;a</option><option value="Tecnolog&iacute;a log&iacute;stica">Tecnolog&iacute;a log&iacute;stica</option></select>
+          <select id="f-feature" class="sel" onchange="applySignalFilters()"><option value="">Todos los features</option><option value="API de integraci&oacute;n para ecommerce">API integraci&oacute;n ecommerce</option><option value="Automatizaci&oacute;n de picking/sorting">Automatizaci&oacute;n picking/sorting</option><option value="Dashboard de visibilidad para clientes">Dashboard visibilidad</option><option value="Expansi&oacute;n regional LATAM">Expansi&oacute;n LATAM</option><option value="Fulfillment tercerizado">Fulfillment tercerizado</option><option value="IA para optimizaci&oacute;n de rutas">IA optimizaci&oacute;n rutas</option><option value="Integraci&oacute;n con marketplaces LATAM">Integraci&oacute;n marketplaces</option><option value="Log&iacute;stica para miner&iacute;a">Log&iacute;stica miner&iacute;a</option><option value="Nearshoring log&iacute;stico">Nearshoring</option><option value="Same day / Next day delivery">Same day delivery</option><option value="Tracking en tiempo real">Tracking tiempo real</option></select>
+          <button class="fb" onclick="clearSignalFilters()">&#10005; Limpiar</button>
+          <span id="sig-count" style="font-size:11px;color:var(--gray400)"></span>
+        </div>
+        <div class="card" style="margin-bottom:0"><div style="overflow-x:auto">
+          <table class="ft" id="signals-table">
+            <thead><tr>
+              <th style="min-width:80px">Fuente</th><th style="min-width:70px">Pa&iacute;s</th>
+              <th style="min-width:150px">Feature</th>
+              <th style="text-align:center;min-width:65px">Impacto</th>
+              <th style="text-align:center;min-width:65px">Urgencia</th>
+              <th style="min-width:110px">Segmento</th>
+              <th style="min-width:180px">T&oacute;pico</th>
+              <th style="min-width:300px">Resumen de se&ntilde;al</th>
+            </tr></thead>
+            <tbody id="signals-tbody"></tbody>
+          </table>
+        </div></div>
+      </div>
+    </div>
+
+    <!-- SENTIMENT WRAPPER -->
+    <div class="page" id="sent-wrapper" style="padding:0;background:transparent">
+      <div id="fb" class="hidden">
+        <span class="fbl">Filtros</span>
+        <select class="fs" id="f-fu" onchange="apf()"><option value="">Todas las fuentes</option><option value="google_maps">Google Maps</option><option value="tuquejasuma">TuQuejaSuma</option></select>
+        <select class="fs" id="f-sc" onchange="apf()"><option value="">Todas las sucursales</option></select>
+        <select class="fs" id="f-cl" onchange="apf()">
+          <option value="">Todos los clientes</option>
+          <optgroup label="eCommerce / Marketplaces"><option value="ML">MercadoLibre</option><option value="Temu">Temu</option><option value="Shein">Shein</option></optgroup>
+          <optgroup label="Gobierno / Documentos"><option value="Renaper/DNI">Renaper / DNI</option><option value="GCBA">GCBA</option></optgroup>
+          <optgroup label="Bancos / Finanzas"><option value="Banco Ciudad">Banco Ciudad</option><option value="Banco Macro">Banco Macro</option><option value="Bancos s/e">Bancos (s/e)</option><option value="Mastercard/Visa">Mastercard / Visa</option></optgroup>
+          <optgroup label="Indumentaria / Deporte"><option value="Nike">Nike</option><option value="Adidas">Adidas</option><option value="Topper">Topper</option><option value="Puma">Puma</option><option value="Decathlon">Decathlon</option><option value="La Martina">La Martina</option></optgroup>
+          <optgroup label="Log&iacute;stica / Correos"><option value="Correo Arg. / Competidores">Correo Arg. / Andreani / OCA</option><option value="MailAmericas">MailAmericas</option><option value="OCASA (interno)">OCASA (interno)</option></optgroup>
+          <optgroup label="Otros"><option value="Newsan">Newsan</option><option value="Otros (menor volumen)">Otros</option><option value="Sin identificar">Sin identificar</option></optgroup>
+        </select>
+        <select class="fs" id="f-se" onchange="apf()"><option value="">Todo sentimiento</option><option value="Negativo">Negativo</option><option value="Positivo">Positivo</option><option value="Neutro">Neutro</option></select>
+        <select class="fs" id="f-yr" onchange="apf()"><option value="">Todos los a&ntilde;os</option></select>
+        <select class="fs" id="f-mo" onchange="apf()">
+          <option value="">Todos los meses</option>
+          <option value="1">Enero</option><option value="2">Febrero</option><option value="3">Marzo</option><option value="4">Abril</option><option value="5">Mayo</option><option value="6">Junio</option>
+          <option value="7">Julio</option><option value="8">Agosto</option><option value="9">Septiembre</option><option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option>
+        </select>
+        <div class="fsep"></div>
+        <button id="freset" onclick="rst()">&times; Limpiar</button>
+      </div>
+
+      <div id="sec-ov" class="sec" style="padding:1.25rem 1.75rem">
+        <div class="sh"><h2>Vista General</h2><p>An&aacute;lisis consolidado &middot; Google Maps + TuQuejaSuma</p></div>
+        <div class="kg k5">
+          <div class="kc"><div class="kl">Total Reviews</div><div class="kv" id="k-tot">&ndash;</div><div class="ks">per&iacute;odo seleccionado</div></div>
+          <div class="kc"><div class="kl">NPS Proxy</div><div class="kv kvred" id="k-nps">&ndash;</div><div class="ks" id="k-nps2">&ndash;</div></div>
+          <div class="kc"><div class="kl">Negativo</div><div class="kv kvred" id="k-neg">&ndash;</div><div class="ks" id="k-neg2">&ndash;</div></div>
+          <div class="kc"><div class="kl">Positivo</div><div class="kv kvgrn" id="k-pos">&ndash;</div><div class="ks" id="k-pos2">&ndash;</div></div>
+          <div class="kc"><div class="kl">Rating Prom.</div><div class="kv kvamb" id="k-st">&ndash;</div><div class="ks">&star; sobre 5.0</div></div>
+        </div>
+        <div class="alr"><strong>&#9888; Se&ntilde;al cr&iacute;tica:</strong> El mayor volumen de reviews reportan <em>Entrega no realizada / visita falsa</em>.</div>
+        <div class="g2s">
+          <div class="cd"><div class="ct2">Distribuci&oacute;n de sentimiento</div><div class="cw"><canvas id="cSent"></canvas></div></div>
+          <div class="cd"><div class="ct2">Reviews por fuente</div><div class="cw"><canvas id="cFuente"></canvas></div></div>
+        </div>
+        <div class="cd"><div class="ct2">Evoluci&oacute;n mensual de reviews negativas <span>&middot; &uacute;ltimos 13 meses</span></div><div class="cw tl"><canvas id="cTrend"></canvas></div></div>
+        <div class="cd"><div class="ct2">Palabras clave m&aacute;s frecuentes</div><div class="wc" id="wc"></div></div>
+      </div>
+
+      <div id="sec-pd" class="sec" style="padding:1.25rem 1.75rem">
+        <div class="sh"><h2>Puntos de Dolor</h2><p>Clasificaci&oacute;n por categor&iacute;a &middot; click en barra para ver reviews</p></div>
+        <div class="g60s">
+          <div class="cd"><div class="ct2">Ranking de problemas <span id="pd-tot"></span></div><div id="pdb"></div></div>
+          <div class="cd">
+            <div class="ct2">Reviews &mdash; <span id="pd-sel-lbl">seleccion&aacute; una barra</span></div>
+            <select class="fs" id="f-pdv" style="width:100%;margin-bottom:10px" onchange="rnRVL()"><option value="">&mdash; Punto de dolor &mdash;</option></select>
+            <div id="rvl"><div class="rv-empty">Seleccion&aacute; un punto de dolor.</div></div>
+          </div>
+        </div>
+        <div class="cd"><div class="ct2">Evoluci&oacute;n anual &mdash; Top 5 puntos de dolor</div><div class="cw xl"><canvas id="cPainEvo"></canvas></div></div>
+        <div class="g2s">
+          <div class="cd"><div class="ct2">Matriz: Cliente &times; Punto de Dolor</div><div class="mxw" id="mx-cp"></div></div>
+          <div class="cd"><div class="ct2">Matriz: Servicio &times; Punto de Dolor</div><div class="mxw" id="mx-sp"></div></div>
+        </div>
+      </div>
+
+      <div id="sec-cl" class="sec" style="padding:1.25rem 1.75rem">
+        <div class="sh"><h2>Clientes</h2><p>Distribuci&oacute;n de reviews por cliente</p></div>
+        <div class="kg k4" id="kpi-cl"></div>
+        <div class="note"><strong>Nota:</strong> Las reviews sin cliente registrado se clasifican como <em>Sin identificar</em>.</div>
+        <div class="g60s">
+          <div class="cd"><div class="ct2">Volumen por cliente <span>&middot; % neg</span></div><div id="cbl"></div></div>
+          <div class="cd">
+            <div class="ct2">Reviews &mdash; <span id="cl-sel-lbl">seleccion&aacute; un cliente</span></div>
+            <select class="fs" id="f-clv" style="width:100%;margin-bottom:10px" onchange="rnRVCL()"><option value="">&mdash; Cliente &mdash;</option></select>
+            <div id="rvcl"><div class="rv-empty">Seleccion&aacute; un cliente para ver reviews.</div></div>
+          </div>
+        </div>
+        <div class="ins"><strong>Riesgo marketplaces:</strong> MercadoLibre y Temu concentran el mayor volumen de quejas identificadas.</div>
+      </div>
+
+      <div id="sec-rv" class="sec" style="padding:1.25rem 1.75rem">
+        <div class="sh"><h2>Detalle de Reviews</h2><p>Texto original &middot; exportable en Excel</p></div>
+        <div id="vbc">
+          <input type="text" id="vbs" placeholder="Buscar en review o autor..." oninput="rnVB()">
+          <span id="vbcnt"></span>
+          <button class="btn-dl" onclick="dlXL()">&darr; Excel</button>
+        </div>
+        <div id="vbtw">
+          <table id="vbt">
+            <thead><tr><th>Fecha</th><th>Autor</th><th>Fuente</th><th>Sucursal</th><th>Cliente</th><th>Servicio</th><th>Punto de Dolor</th><th>Sentim.</th><th>&#9733;</th><th>Review original</th></tr></thead>
+            <tbody id="vbb"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const SHEET_SENALES_CSV    = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR1W7ONeWoK4BHK1mEC_sJXq5NInJrrfMqnm0mTG6i3stYvRHGGmRECKggXyimLqpiPjCmkzhJbYlHT/pub?gid=2084779388&single=true&output=csv";
+const SHEET_TENDENCIAS_CSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR1W7ONeWoK4BHK1mEC_sJXq5NInJrrfMqnm0mTG6i3stYvRHGGmRECKggXyimLqpiPjCmkzhJbYlHT/pub?gid=1325496971&single=true&output=csv";
+const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQa8lb9LyoLQbEdYhVttK13B69xWP_5bSZeNnTlpvyv4PBDwNW3mGmQ9NmxvFCH8SdTJY49dwp_tomY/pub?gid=1325309383&single=true&output=csv";
+
+const DATA = {"fecha":"2026-06-09","total":173,"muy_alto":11,"urg_alta":140,"features_count":32,"nuevas_count":6,"alerta":"<strong>Nueva señal detectada:</strong> <em>Gestión de excepciones proactiva</em> aparece por primera vez con impacto alto y urgencia alta (Argentina, Brasil, México).","pais_counts":{"Argentina":59,"Regional":32,"Brasil":23,"México":20,"Colombia":16,"Chile":13,"Perú":10},"area_data":{"Estrategia":95,"Innovación":50,"Comercial":18,"Operaciones":10},"vert_data":{"Ecommerce grande":61,"Tecnología logística":52,"Logística general":38,"Agroindustria":4,"Import / Export":4,"Manufactura":4},"country_data":{"Argentina":{"s":59,"color":"#0E1B2E","iso":"032","urgentes":48,"feats":[{"f":"Fulfillment tercerizado","n":8},{"f":"Same day / Next day delivery","n":7},{"f":"Dashboard de visibilidad para clientes","n":5},{"f":"Tracking en tiempo real","n":5},{"f":"Expansión regional LATAM","n":4}]},"Brasil":{"s":23,"color":"#1d6fa4","iso":"076","urgentes":15,"feats":[{"f":"Expansión regional LATAM","n":7},{"f":"IA para optimización de rutas","n":5},{"f":"Dashboard de visibilidad para clientes","n":3},{"f":"API de integración para ecommerce","n":2},{"f":"Cross-border acelerado","n":1}]},"México":{"s":20,"color":"#2e7d32","iso":"484","urgentes":15,"feats":[{"f":"Nearshoring logístico","n":5},{"f":"IA para optimización de rutas","n":3},{"f":"Expansión regional LATAM","n":2},{"f":"Same day / Next day delivery","n":2},{"f":"Fulfillment tercerizado","n":2}]},"Colombia":{"s":16,"color":"#7b5ea7","iso":"170","urgentes":16,"feats":[{"f":"IA para optimización de rutas","n":5},{"f":"Fulfillment tercerizado","n":3},{"f":"API de integración para ecommerce","n":2},{"f":"Same day / Next day delivery","n":2},{"f":"Logística inversa automatizada","n":1}]},"Chile":{"s":13,"color":"#00A499","iso":"152","urgentes":11,"feats":[{"f":"Tracking en tiempo real","n":3},{"f":"Fulfillment tercerizado","n":3},{"f":"IA para optimización de rutas","n":2},{"f":"Expansión regional LATAM","n":1},{"f":"Carbon footprint tracking","n":1}]},"Perú":{"s":10,"color":"#b45309","iso":"604","urgentes":6,"feats":[{"f":"Dashboard de visibilidad para clientes","n":2},{"f":"Expansión regional LATAM","n":2},{"f":"Fulfillment tercerizado","n":1},{"f":"Same day / Next day delivery","n":1},{"f":"API de integración para ecommerce","n":1}]},"Regional":{"s":32,"color":"#6b7a8d","iso":"","urgentes":29,"feats":[{"f":"IA para optimización de rutas","n":10},{"f":"Expansión regional LATAM","n":5},{"f":"Dashboard de visibilidad para clientes","n":4},{"f":"Cross-border acelerado","n":3},{"f":"Integración con marketplaces LATAM","n":2}]}},"top10":[{"r":1,"feat":"IA para optimización de rutas","n":28,"imp":"alto","urg":"alta","seg":"Tecnología logística","res":"La inteligencia artificial ya está generando mejoras concretas en logística y supply chain en Latinoamérica: optimización de rutas, chatbots y predicción de demanda."},{"r":2,"feat":"Expansión regional LATAM","n":22,"imp":"alto","urg":"alta","seg":"Ecommerce / Retail","res":"Uruguay lidera penetración de ecommerce en LATAM con 67%. Crecen volumen de envíos, exigencia en última milla y oportunidades en pagos y cross-border."},{"r":3,"feat":"Fulfillment tercerizado","n":17,"imp":"muy_alto","urg":"alta","seg":"Ecommerce / Retail","res":"Colombia: tercer mercado ecommerce de LATAM con US$52B en 2024. Alta concentración en Bogotá, Antioquia y Valle del Cauca exige capacidades de distribución urbana."},{"r":4,"feat":"Dashboard de visibilidad para clientes","n":15,"imp":"alto","urg":"alta","seg":"Tecnología logística","res":"DispatchTrack presentó en Andina Pack 2025 soluciones de despacho más personalizada y eficiente. Tendencia regional hacia digitalización de última milla."},{"r":5,"feat":"Same day / Next day delivery","n":13,"imp":"muy_alto","urg":"alta","seg":"Ecommerce / Retail","res":"La entrega el mismo día avanza en LATAM impulsada por ecommerce en México, Brasil, Colombia y Chile. Exige rediseñar procesos e integrar tecnología."},{"r":6,"feat":"API de integración para ecommerce","n":12,"imp":"muy_alto","urg":"alta","seg":"Ecommerce / Retail","res":"Expansión sostenida del ecommerce en LATAM con fuerte crecimiento hasta 2027. Brasil y México lideran; Colombia acelera pagos electrónicos."},{"r":7,"feat":"Tracking en tiempo real","n":10,"imp":"muy_alto","urg":"alta","seg":"Tecnología logística","res":"Ronda Serie B de US$60M para startup logística respaldada por Tiger Global y SoftBank refuerza dinamismo en última milla y trazabilidad regional."},{"r":8,"feat":"Cross-border acelerado","n":6,"imp":"alto","urg":"alta","seg":"Ecommerce / Retail","res":"Cross border ecommerce puede representar 10-15% del ecommerce de bienes. Mercado internacional alcanzó USD 627B en 2022."},{"r":9,"feat":"Integración con marketplaces LATAM","n":6,"imp":"muy_alto","urg":"alta","seg":"Ecommerce / Retail","res":"Ecommerce peruano en expansión: 8.8% penetración en retail, 18.7M compradores online, 40% del volumen en marketplaces."},{"r":10,"feat":"Nearshoring logístico","n":5,"imp":"alto","urg":"alta","seg":"Manufactura","res":"Nearshoring reconfigura cadenas de suministro en 2025 con foco en México. Aumenta demanda de transporte, almacenamiento y coordinación logística regional."}],"top_feats":[{"feature":"IA para optimización de rutas","paises_activos":"Argentina, Brasil, Chile, Colombia, México, Regional","señales_totales":28,"impacto_actual":"alto","urgencia_actual":"alta","tendencia":"bajando ↓","fuentes_unicas":"moova, beetrack, nuvocargo, loggi, tavily","resumen_tendencia":"IA generando mejoras concretas en logística LATAM: optimización de rutas, chatbots e IVR inteligente, predicción de demanda."},{"feature":"Expansión regional LATAM","paises_activos":"Argentina, Brasil, Chile, Colombia, México, Perú, Regional","señales_totales":22,"impacto_actual":"alto","urgencia_actual":"alta","tendencia":"bajando ↓","fuentes_unicas":"trf, furlong, tasa_logistica, webpicking, america_retail","resumen_tendencia":"Uruguay lidera penetración ecommerce LATAM 2025. Mayor volumen de envíos, exigencia última milla, oportunidades en pagos y cross-border."},{"feature":"Fulfillment tercerizado","paises_activos":"Argentina, Brasil, Chile, Colombia, México, Perú","señales_totales":17,"impacto_actual":"muy_alto","urgencia_actual":"alta","tendencia":"bajando ↓","fuentes_unicas":"oca, urbano, loginter, cace, capece_pe","resumen_tendencia":"Colombia tercer mercado ecommerce LATAM US$52B 2024. Alta concentración urbana refuerza necesidad de distribución y última milla."},{"feature":"Dashboard de visibilidad para clientes","paises_activos":"Argentina, Brasil, México, Perú, Regional","señales_totales":15,"impacto_actual":"alto","urgencia_actual":"alta","tendencia":"bajando ↓","fuentes_unicas":"andesmar, wigou, tradelog, cedol, nowports","resumen_tendencia":"DispatchTrack Andina Pack 2025: digitalización y optimización de última milla con IA logística."},{"feature":"Same day / Next day delivery","paises_activos":"Argentina, Colombia, México, Perú, Regional","señales_totales":13,"impacto_actual":"muy_alto","urgencia_actual":"alta","tendencia":"bajando ↓","fuentes_unicas":"treggo, tavily","resumen_tendencia":"Entrega mismo día avanza en LATAM. Barreras operativas requieren rediseño de procesos, tecnología y nueva estructura logística."},{"feature":"API de integración para ecommerce","paises_activos":"Argentina, Brasil, Colombia, México, Perú, Regional","señales_totales":12,"impacto_actual":"muy_alto","urgencia_actual":"alta","tendencia":"bajando ↓","fuentes_unicas":"fixy, mercado_logistica, enviacom, coordinadora, tavily","resumen_tendencia":"Expansión ecommerce LATAM hasta 2030. Brasil y México lideran; Colombia acelera pagos electrónicos."},{"feature":"Tracking en tiempo real","paises_activos":"Argentina, Brasil, Chile, Regional","señales_totales":10,"impacto_actual":"muy_alto","urgencia_actual":"alta","tendencia":"bajando ↓","fuentes_unicas":"lionxpress, tavily","resumen_tendencia":"Serie B US$60M startup logística LATAM. Loggi y Kangu refuerzan dinamismo en última milla y trazabilidad."},{"feature":"Cross-border acelerado","paises_activos":"Argentina, Brasil, Perú, Regional","señales_totales":6,"impacto_actual":"alto","urgencia_actual":"alta","tendencia":"bajando ↓","fuentes_unicas":"correios_br, tavily","resumen_tendencia":"Cross border puede ser 10-15% del ecommerce de bienes. Comercio internacional USD 627B en 2022."},{"feature":"Integración con marketplaces LATAM","paises_activos":"Argentina, Colombia, México, Perú, Regional","señales_totales":6,"impacto_actual":"muy_alto","urgencia_actual":"alta","tendencia":"bajando ↓","fuentes_unicas":"zippin, tavily","resumen_tendencia":"Ecommerce peruano: 8.8% penetración retail, 18.7M compradores, 40% volumen en marketplaces."},{"feature":"Nearshoring logístico","paises_activos":"México","señales_totales":5,"impacto_actual":"alto","urgencia_actual":"alta","tendencia":"bajando ↓","fuentes_unicas":"tavily","resumen_tendencia":"Nearshoring reconfigura supply chains 2025 con foco en México. Mayor demanda de transporte y almacenamiento regional."},{"feature":"Gestión de excepciones proactiva","paises_activos":"Argentina, Brasil, México","señales_totales":3,"impacto_actual":"alto","urgencia_actual":"alta","tendencia":"nueva ★","fuentes_unicas":"jadlog, estafeta, tavily","resumen_tendencia":"Año Nuevo Chino genera reprogramaciones y demoras. Importadores argentinos con riesgo de quiebre de stock."},{"feature":"Logística para minería","paises_activos":"Argentina","señales_totales":3,"impacto_actual":"muy_alto","urgencia_actual":"alta","tendencia":"nueva ★","fuentes_unicas":"tavily","resumen_tendencia":"Crecimiento minero argentino 2025: litio, cobre, oro y plata. Elevada demanda de transporte y servicios especializados."},{"feature":"Automatización de picking/sorting","paises_activos":"Argentina","señales_totales":2,"impacto_actual":"alto","urgencia_actual":"alta","tendencia":"nueva ★","fuentes_unicas":"tavily, correo_argentino","resumen_tendencia":"82% de empresas logísticas argentinas planea invertir en 2025. Prioridades: automatización, robotización e IA."}],"tend_rows":[],"comp_rows":[{"fuente":"oca","topico":"OCA refuerza ecommerce y salud; presiona a OCASA en fulfillment e inversa.","impacto":"alto","urgencia":"alta","resumen":"OCA comunica oferta integral de logística y fulfillment para ecommerce, con OCA ePak, logística inversa y habilitación ANMAT para salud.","feature_tipificada":"Fulfillment tercerizado"},{"fuente":"oca","topico":"OCA refuerza reglas de entrega y retiro; OCASA debe ajustar su propuesta de última milla.","impacto":"alto","urgencia":"alta","resumen":"OCA publica condiciones operativas para tracking, retiro en sucursales, entregas a domicilio y SmartLockers con ventana de 48hs.","feature_tipificada":"Puntos de conveniencia / PUDO"},{"fuente":"correo_argentino","topico":"Correo Argentino automatiza su operación y refuerza su propuesta digital.","impacto":"alto","urgencia":"alta","resumen":"Correo Argentino inauguró el primer sistema de clasificación robótica de paquetes en LATAM en Buenos Aires y reforzó su canal digital MiCorreo.","feature_tipificada":"Automatización de picking / sorting"}],"nuevas":[{"feature":"Gestión de excepciones proactiva","paises_activos":"Argentina, Brasil, México","señales_totales":3,"impacto_actual":"alto","urgencia_actual":"alta","tendencia":"nueva ★"},{"feature":"Logística para minería / agroindustria","paises_activos":"Argentina","señales_totales":3,"impacto_actual":"alto","urgencia_actual":"alta","tendencia":"nueva ★"},{"feature":"Logística para minería","paises_activos":"Argentina","señales_totales":3,"impacto_actual":"muy_alto","urgencia_actual":"alta","tendencia":"nueva ★"},{"feature":"Automatización de picking/sorting","paises_activos":"Argentina","señales_totales":2,"impacto_actual":"alto","urgencia_actual":"alta","tendencia":"nueva ★"},{"feature":"Automatización de picking / sorting","paises_activos":"Argentina","señales_totales":2,"impacto_actual":"alto","urgencia_actual":"alta","tendencia":"nueva ★"},{"feature":"Fulfillment urbano última milla","paises_activos":"Brasil","señales_totales":1,"impacto_actual":"alto","urgencia_actual":"media","tendencia":"nueva ★"}],"ma_alta":11,"ma_med":0,"alt_alta":129,"alt_med":33};
+
+const SIGNALS = [{"fuente":"tavily","pais":"Argentina","tipo":"escucha_activa","impacto":"muy_alto","urgencia":"alta","feature":"Tracking en tiempo real","vertical":"Tecnología logística","topico":"Crecen e-commerce, digitalización e infraestructura; OCASA debe adaptar capacidad y trazabilidad.","resumen":"Fuerte crecimiento del comercio electrónico en Argentina con avances en infraestructura portuaria en Rosario y adopción de blockchain, IA e IoT. Presión por mayor sostenibilidad con VE y energías renovables. OCASA debe reforzar soluciones de última milla, trazabilidad y eficiencia operativa.","score":8.0,"area":"estrategia"},{"fuente":"tavily","pais":"Argentina","tipo":"escucha_activa","impacto":"muy_alto","urgencia":"alta","feature":"Same day / Next day delivery","vertical":"Ecommerce grande","topico":"El e-commerce crece fuerte y eleva la demanda de logística rápida y profesional.","resumen":"Expansión acelerada del ecommerce argentino. La logística profesional y entregas same-day se vuelven diferenciales competitivos. Oportunidad de capturar demanda con propuestas de última milla y cobertura regional.","score":8.0,"area":"comercial"},{"fuente":"tavily","pais":"Argentina","tipo":"escucha_activa","impacto":"muy_alto","urgencia":"alta","feature":"Logística para minería","vertical":"Minería","topico":"Crecen exportaciones mineras y demanda logística especializada en Argentina.","resumen":"Expansión logística minera en Argentina: auge del litio, cobre y minerales estratégicos. NOA, Cuyo y Patagonia elevan demanda de infraestructura, rutas y nodos de carga. Oportunidades en transporte, almacenamiento y exportación de cargas mineras.","score":8.0,"area":"comercial"},{"fuente":"tavily","pais":"México","tipo":"escucha_activa","impacto":"muy_alto","urgencia":"alta","feature":"Same day / Next day delivery","vertical":"Ecommerce grande","topico":"El e-commerce mexicano crece rápido y exige logística más ágil y visible.","resumen":"Ecommerce México crece 20% en 2024, 900M envíos anuales. Clientes esperan entregas mismo día o día siguiente y trazabilidad en tiempo real. Oportunidad en soluciones de última milla y escalabilidad operativa.","score":8.0,"area":"estrategia"},{"fuente":"tavily","pais":"Regional","tipo":"escucha_activa","impacto":"muy_alto","urgencia":"alta","feature":"API de integración para ecommerce","vertical":"Ecommerce grande","topico":"El e-commerce regional acelera y eleva la demanda logística y de última milla para OCASA.","resumen":"Expansión sostenida del ecommerce en LATAM con fuerte crecimiento hasta 2027-2030. Brasil y México lideran; Colombia acelera pagos electrónicos. Más envíos, mayor complejidad operativa y necesidad de integración con ecosistemas digitales.","score":8.0,"area":"estrategia"},{"fuente":"cace","pais":"Argentina","tipo":"radar_industria","impacto":"muy_alto","urgencia":"alta","feature":"Fulfillment tercerizado","vertical":"Ecommerce grande","topico":"Hot Sale acelera demanda eCommerce y exige mayor capacidad logística para entregas rápidas.","resumen":"Hot Sale 2026: $673B en facturación, +6M órdenes y ticket promedio en alza. Confirma mayor demanda de fulfillment, distribución y entregas rápidas. OCASA debe reforzar capacidad operativa y tecnología de seguimiento.","score":7.0,"area":"operaciones"},{"fuente":"correo_argentino","pais":"Argentina","tipo":"competitiva","impacto":"alto","urgencia":"alta","feature":"Automatización de picking / sorting","vertical":"Bancos / Postal","topico":"Correo Argentino automatiza su operación y refuerza su propuesta digital.","resumen":"Correo Argentino inauguró el primer sistema de clasificación robótica de paquetes en LATAM en Buenos Aires. Refuerza canal digital MiCorreo. Mejora productividad, trazabilidad y experiencia digital en competidor con gran capilaridad.","score":8.0,"area":"innovacion"},{"fuente":"enviopack","pais":"Argentina","tipo":"competitiva","impacto":"alto","urgencia":"alta","feature":"Fulfillment omnicanal integrado","vertical":"Tecnología logística","topico":"Envíopack refuerza fulfillment y última milla; presiona a OCASA en visibilidad e integración.","resumen":"Envíopack amplía oferta: fulfillment omnicanal B2B/B2C, última milla, WMS e integración con ecommerce, marketplaces y ERP. Same day/next day en AMBA. Eleva estándar competitivo en segmento 3PL.","score":8.0,"area":"estrategia"},{"fuente":"tasa_logistica","pais":"Argentina","tipo":"competitiva","impacto":"alto","urgencia":"alta","feature":"Expansión regional LATAM","vertical":"Tecnología logística","topico":"Competidor regional escala tecnología y capacidad; presiona precios y servicio en LATAM.","resumen":"TASA Logística: operador regional con fuerte escala en Argentina y países vecinos. WMS, RFID, voice picking, TMS y flota eléctrica. Certificaciones de sustentabilidad. Eleva estándar competitivo en eficiencia y trazabilidad.","score":8.0,"area":"estrategia"},{"fuente":"nuvocargo","pais":"Regional","tipo":"competitiva","impacto":"alto","urgencia":"alta","feature":"IA para optimización de rutas","vertical":"Tecnología logística","topico":"Nuvocargo automatiza fletes US-MX con IA y eleva presión competitiva en eficiencia.","resumen":"Nuvocargo lanzó Nuvo AI: plataforma IA para ciclo completo de flete terrestre EE.UU.-México. Combina cotización, negociación, booking, despacho, tracking, excepciones, auditoría y pagos con +12 agentes de IA.","score":8.0,"area":"innovacion"},{"fuente":"loggi","pais":"Brasil","tipo":"competitiva","impacto":"alto","urgencia":"alta","feature":"IA para optimización de rutas","vertical":"Tecnología logística","topico":"Loggi escala su red y tecnología en Brasil, elevando la presión competitiva sobre last mile.","resumen":"Loggi lanzó oferta logística nacional en Brasil: envíos rápidos y baratos con IA, red amplia de puntos y gran capacidad de procesamiento. Fuerte posicionamiento en last mile y fulfillment.","score":8.0,"area":"estrategia"},{"fuente":"oca","pais":"Argentina","tipo":"competitiva","impacto":"alto","urgencia":"alta","feature":"Fulfillment tercerizado","vertical":"Ecommerce grande","topico":"OCA refuerza ecommerce y salud; presiona a OCASA en fulfillment e inversa.","resumen":"OCA: oferta integral de fulfillment para ecommerce con OCA ePak, logística inversa y habilitación ANMAT para salud y medicamentos. Presión competitiva directa en ecommerce, devoluciones y vertical salud.","score":6.0,"area":"estrategia"},{"fuente":"treggo","pais":"Argentina","tipo":"competitiva","impacto":"alto","urgencia":"alta","feature":"Same day / Next day delivery","vertical":"Ecommerce grande","topico":"Treggo refuerza última milla e-commerce; presiona a OCASA en velocidad y automatización.","resumen":"Treggo: última milla para ecommerce en LATAM con same day, logística inversa, repartos por hora y seguimiento en tiempo real. Cobertura nacional y automatización de envíos para tiendas online.","score":6.0,"area":"comercial"},{"fuente":"tavily","pais":"Brasil","tipo":"escucha_activa","impacto":"alto","urgencia":"alta","feature":"Expansión regional LATAM","vertical":"Ecommerce grande","topico":"El e-commerce brasileño crece y eleva la demanda por logística más rápida y eficiente.","resumen":"Ecommerce Brasil: crecimiento de dos dígitos, fuerte tracción en Black Friday y volumen anual elevado. Mayor necesidad de redes logísticas más distribuidas y resilientes en última milla.","score":8.0,"area":"estrategia"},{"fuente":"tavily","pais":"México","tipo":"escucha_activa","impacto":"alto","urgencia":"alta","feature":"Nearshoring logístico","vertical":"Manufactura","topico":"Nearshoring impulsa hubs logísticos en México y exige más capacidad para OCASA.","resumen":"Nearshoring reconfigura logística en LATAM con México como principal hub. Crecimiento de parques industriales y CDs aumenta demanda de almacenamiento, distribución y servicios 3PL.","score":8.0,"area":"estrategia"},{"fuente":"tavily","pais":"Chile","tipo":"escucha_activa","impacto":"alto","urgencia":"alta","feature":"Tracking en tiempo real","vertical":"Tecnología logística","topico":"Acelera la digitalización logística y eleva la presión competitiva en última milla.","resumen":"Digitalización y automatización logística en Chile: IoT, IA, big data, robots y trazabilidad en tiempo real. Crecimiento del ecommerce eleva exigencia sobre última milla y entregas flexibles.","score":8.0,"area":"innovacion"},{"fuente":"tavily","pais":"Colombia","tipo":"escucha_activa","impacto":"alto","urgencia":"alta","feature":"IA para optimización de rutas","vertical":"Ecommerce grande","topico":"Crecen exigencias de última milla en Colombia y presionan eficiencia, visibilidad y costos.","resumen":"Última milla en Colombia concentra alto % del costo de entrega. Consumidores demandan entregas en menos de 24hs, tracking en tiempo real y opciones PUDO. E-commerce tensiona la operación.","score":8.0,"area":"innovacion"},{"fuente":"tavily","pais":"Perú","tipo":"escucha_activa","impacto":"alto","urgencia":"alta","feature":"Same day / Next day delivery","vertical":"Ecommerce grande","topico":"Crece el ecommerce peruano y exige entregas rápidas y cobertura regional.","resumen":"Ecommerce Perú: crecimiento 35% proyectado 2026, expansión fuera de Lima. Same-day y postventa ya son expectativas básicas. Oportunidad de cobertura regional y última milla rápida.","score":7.0,"area":"estrategia"},{"fuente":"tavily","pais":"Regional","tipo":"escucha_activa","impacto":"alto","urgencia":"alta","feature":"IA para optimización de rutas","vertical":"Tecnología logística","topico":"La IA acelera la eficiencia logística regional y exige más automatización.","resumen":"Adopción acelerada de IA en logística LATAM para automatizar decisiones, reducir errores y mejorar pronóstico, inventarios y rutas. Expansión ecommerce refuerza necesidad de soluciones predictivas.","score":7.0,"area":"innovacion"},{"fuente":"tavily","pais":"Argentina","tipo":"escucha_activa","impacto":"alto","urgencia":"alta","feature":"Fulfillment tercerizado","vertical":"Logística general","topico":"El sector logístico argentino invertirá más en 2025 y OCASA puede capturar mayor demanda.","resumen":"Encuesta ARLOG: mayoría de empresas planea ampliar instalaciones, equipamiento y tecnología. Impulso por importaciones, ecommerce y sectores extractivos con rebote en segundo semestre.","score":8.0,"area":"estrategia"},{"fuente":"tavily","pais":"Argentina","tipo":"escucha_activa","impacto":"alto","urgencia":"alta","feature":"IA para optimización de rutas","vertical":"Logística general","topico":"Suben costos y la tecnología se vuelve clave para competir en logística.","resumen":"Logística en Argentina y LATAM enfrenta mayores exigencias tecnológicas y de sostenibilidad. CEDOL reporta alza de 37.01% en costos logísticos 2025. Diferenciación urgente con integración tecnológica.","score":8.0,"area":"estrategia"},{"fuente":"tavily","pais":"Argentina","tipo":"escucha_activa","impacto":"alto","urgencia":"alta","feature":"Gestión de excepciones proactiva","vertical":"Import / Export","topico":"El Año Nuevo Chino retrasa importaciones y exige mayor planificación logística.","resumen":"Año Nuevo Chino genera reprogramaciones de embarque y menor disponibilidad en buques y aeronaves. Importadores argentinos con riesgo de demoras productivas y quiebres de stock.","score":7.0,"area":"operaciones"},{"fuente":"arlog","pais":"Argentina","tipo":"radar_industria","impacto":"alto","urgencia":"alta","feature":"Seguro de envío integrado","vertical":"Logística general","topico":"Sube el robo de cargas y la automatización acelera la competencia logística regional.","resumen":"ARLOG: aumento y sofisticación del robo de cargas en LATAM. Mayor profesionalización del talento logístico. Mecalux y Andreani invierten en tecnología y automatización.","score":7.0,"area":"estrategia"},{"fuente":"tavily","pais":"Regional","tipo":"escucha_activa","impacto":"alto","urgencia":"alta","feature":"Same day / Next day delivery","vertical":"Ecommerce grande","topico":"El same day delivery crece en LATAM y exige rediseñar la última milla.","resumen":"Entrega mismo día avanza en México, Brasil, Colombia y Chile. Todavía no es estándar pero exige rediseñar procesos, integrar tecnología y reestructurar operaciones logísticas.","score":7.0,"area":"innovacion"}];
+
+const AREA_COLORS=['#0E1B2E','#2563a8','#6e7478','#9aa0a6','#b0b8c0','#c8d0d8'];
+const PAIS_COLORS={Argentina:'#0E1B2E',Brasil:'#1d6fa4',Mexico:'#2e7d32',Colombia:'#7b5ea7',Chile:'#00A499',Peru:'#b45309',Regional:'#6b7a8d','México':'#2e7d32','Perú':'#b45309'};
+
+function pill(v,type){
+  if(type==='imp') return v==='muy_alto'?'<span class="pill pill-muyalto">Muy alto</span>':'<span class="pill pill-alto">Alto</span>';
+  if(type==='urg') return v==='alta'?'<span class="pill pill-alta">Alta</span>':'<span class="pill pill-media">Media</span>';
+  if((v||'').includes('nueva')) return '<span class="pill" style="background:#edf7f1;color:#1e6b3a">'+v+'</span>';
+  if((v||'').includes('bajando')) return '<span class="pill" style="background:#fdf0ee;color:#c0392b">'+v+'</span>';
+  return '<span class="pill" style="background:var(--gray100);color:var(--gray600)">'+v+'</span>';
+}
+function nColor(n,max){var p=max>0?n/max:0;return 'hsl(215,54%,'+Math.round(20+(1-p)*55)+'%)';}
+function pc(pais){return PAIS_COLORS[pais]||'#888';}
+
+var TITLES={overview:'Resumen Ejecutivo',features:'Features & Tendencias',signals:'Detalle Señales',ov:'Vista General',pd:'Puntos de Dolor',cl:'Clientes',rv:'Detalle Reviews'};
+var _D=null,_featsOk=false,_sigsOk=false,_fi='all',_ft='all';
+
+var SENT_TITLES={ov:'Vista General',pd:'Puntos de Dolor',cl:'Clientes',rv:'Detalle Reviews'};
+function goSent(id,el){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.sec').forEach(s=>s.classList.remove('on'));
+  document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));
+  document.getElementById('sent-wrapper').classList.add('active');
+  document.getElementById('sec-'+id).classList.add('on');
+  if(el) el.classList.add('active');
+  document.getElementById('topbar-title').textContent=SENT_TITLES[id]||id;
+  document.getElementById('fb').classList.remove('hidden');
+  ra();
+}
+
+function showPage(id){
+  var fb=document.getElementById('fb');
+  if(fb) fb.classList.toggle('hidden',!['ov','pd','cl','rv'].includes(id));
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.sec').forEach(s=>s.classList.remove('on'));
+  ['overview','features','signals'].forEach(k=>{var e=document.getElementById('nav-'+k);if(e)e.classList.remove('active');});
+  document.getElementById('page-'+id).classList.add('active');
+  var nav=document.getElementById('nav-'+id);if(nav)nav.classList.add('active');
+  document.getElementById('topbar-title').textContent=TITLES[id]||id;
+  if(id==='features'&&!_featsOk&&_D) renderFeatures(_D);
+  if(id==='signals'&&!_sigsOk) initSignals();
+}
+
+function parseCSV(text){
+  var lines=text.trim().split('\n');
+  var headers=lines[0].split(',').map(h=>h.replace(/^"|"$/g,'').trim());
+  return lines.slice(1).map(line=>{
+    var vals=line.match(/"[^"]*"|[^,]*/g)||[];
+    var obj={};headers.forEach((h,i)=>obj[h]=(vals[i]||'').replace(/^"|"$/g,'').trim());return obj;
+  });
+}
+
+function buildFromCSV(csvS,csvT){
+  var senales=parseCSV(csvS),tendencias=parseCSV(csvT);
+  var total=senales.length,muyAlto=senales.filter(r=>r.impacto==='muy_alto').length;
+  var urgAlta=senales.filter(r=>r.urgencia==='alta').length;
+  var fecha=(senales[0]&&senales[0].fecha_detectada)?senales[0].fecha_detectada.slice(0,10):'';
+  var countBy=(arr,key)=>arr.reduce((acc,r)=>{acc[r[key]]=(acc[r[key]]||0)+1;return acc;},{});
+  var paisCounts=countBy(senales,'pais'),areaRaw=countBy(senales,'area_responsable'),vertRaw=countBy(senales,'vertical');
+  var AREA_LBL={estrategia:'Estrategia',innovacion:'Innovación',comercial:'Comercial',operaciones:'Operaciones',customer_experience:'CX'};
+  var VERT_LBL={ecommerce_grande:'Ecommerce grande',tecnologia_logistica:'Tecnología logística',logistica_general:'Logística general',agroindustria:'Agroindustria','minería':'Minería'};
+  var SEG_MAP={ecommerce_grande:'Ecommerce / Retail',tecnologia_logistica:'Tecnología logística',logistica_general:'Logística general'};
+  var areaData={};Object.keys(areaRaw).forEach(k=>areaData[AREA_LBL[k]||k]=areaRaw[k]);
+  var vertData={};Object.entries(vertRaw).sort((a,b)=>b[1]-a[1]).slice(0,6).forEach(p=>vertData[VERT_LBL[p[0]]||p[0]]=p[1]);
+  var cfMap={};
+  senales.forEach(r=>{if(!r.pais||!r.feature_tipificada)return;cfMap[r.pais]=cfMap[r.pais]||{};cfMap[r.pais][r.feature_tipificada]=(cfMap[r.pais][r.feature_tipificada]||0)+1;});
+  var COLOR_MAP={Argentina:'#0E1B2E',Brasil:'#1d6fa4','México':'#2e7d32',Colombia:'#7b5ea7',Chile:'#00A499','Perú':'#b45309',Regional:'#6b7a8d'};
+  var ISO_MAP={Argentina:'032',Brasil:'076','México':'484',Colombia:'170',Chile:'152','Perú':'604'};
+  var countryData={};
+  ['Argentina','Brasil','México','Colombia','Chile','Perú','Regional'].forEach(p=>{
+    var featsObj=cfMap[p]||{};
+    var top5=Object.entries(featsObj).sort((a,b)=>b[1]-a[1]).slice(0,5).map(e=>({f:e[0],n:e[1]}));
+    var urg=senales.filter(r=>r.pais===p&&r.urgencia==='alta').length;
+    countryData[p]={s:paisCounts[p]||0,color:COLOR_MAP[p]||'#888',iso:ISO_MAP[p]||'',urgentes:urg,feats:top5};
+  });
+  var tendRows=tendencias.map(r=>Object.assign({},r,{señales_totales:parseInt(r.señales_totales)||0}));
+  var topFeats=tendRows.slice().sort((a,b)=>b.señales_totales-a.señales_totales);
+  var vertByFeat={};senales.forEach(r=>{if(r.feature_tipificada&&r.vertical)vertByFeat[r.feature_tipificada]=r.vertical;});
+  var top10=topFeats.slice(0,10).map((f,i)=>({r:i+1,feat:f.feature,n:f.señales_totales,imp:f.impacto_actual,urg:f.urgencia_actual,seg:SEG_MAP[vertByFeat[f.feature]]||'Logística general',res:f.resumen_tendencia||''}));
+  var compRows=senales.filter(r=>['andreani','oca','correo_argentino'].includes(r.fuente));
+  var nuevas=tendRows.filter(r=>(r.tendencia||'').includes('nueva')).slice(0,6);
+  var nuevasAlto=nuevas.filter(r=>['muy_alto','alto'].includes(r.impacto_actual));
+  var alerta=nuevasAlto.length>0?'<strong>Nueva señal:</strong> <em>'+nuevasAlto[0].feature+'</em> impacto '+nuevasAlto[0].impacto_actual+' ('+nuevasAlto[0].paises_activos+').':'<strong>Señal crítica:</strong> '+topFeats[0].feature+' lidera con '+topFeats[0].señales_totales+' señales.';
+  var maAlta=senales.filter(r=>r.impacto==='muy_alto'&&r.urgencia==='alta').length;
+  return {fecha,total,muy_alto:muyAlto,urg_alta:urgAlta,features_count:tendRows.length,nuevas_count:nuevas.length,alerta,pais_counts:paisCounts,area_data:areaData,vert_data:vertData,country_data:countryData,top10,top_feats:topFeats,tend_rows:tendRows,comp_rows:compRows,nuevas,ma_alta:maAlta,ma_med:muyAlto-maAlta,alt_alta:urgAlta-maAlta,alt_med:Math.max(0,total-muyAlto-(urgAlta-maAlta))};
+}
+
+async function loadData(){
+  if(SHEET_SENALES_CSV&&SHEET_TENDENCIAS_CSV){
+    try{
+      var proxy=u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u);
+      var [r1,r2]=await Promise.all([fetch(proxy(SHEET_SENALES_CSV)),fetch(proxy(SHEET_TENDENCIAS_CSV))]);
+      return buildFromCSV(await r1.text(),await r2.text());
+    }catch(e){console.warn('Usando datos locales:',e);}
+  }
+  return DATA;
+}
+
+function renderOverview(D){
+  document.getElementById('kpi-row').innerHTML=
+    '<div class="kpi"><div class="kpi-lbl">Señales totales</div><div class="kpi-val">'+D.total+'</div><div class="kpi-sub">'+Object.keys(D.pais_counts).length+' países</div></div>'+
+    '<div class="kpi"><div class="kpi-lbl">Impacto muy alto</div><div class="kpi-val">'+D.muy_alto+'</div><div class="kpi-sub">Acción inmediata</div></div>'+
+    '<div class="kpi"><div class="kpi-lbl">Urgencia alta</div><div class="kpi-val">'+D.urg_alta+'</div><div class="kpi-sub">'+Math.round(D.urg_alta/D.total*100)+'% del total</div></div>'+
+    '<div class="kpi"><div class="kpi-lbl">Features activas</div><div class="kpi-val">'+D.features_count+'</div><div class="kpi-sub">'+D.nuevas_count+' nuevas esta semana</div></div>'+
+    '<div class="kpi"><div class="kpi-lbl">Competidores AR</div><div class="kpi-val">'+D.comp_rows.length+'</div><div class="kpi-sub">Señales directas</div></div>';
+  document.getElementById('tb-chip').textContent=D.total+' señales · LATAM';
+  document.getElementById('tb-date').textContent=D.fecha+' · Semana CI';
+  document.getElementById('sb-footer').innerHTML='Customer Intelligence<br>Gerencia CX · OCASA<br>'+D.total+' señales · '+D.fecha;
+  document.getElementById('alert-text').innerHTML=D.alerta;
+  document.getElementById('matrix-body').innerHTML='<div class="matrix"><div></div><div class="m-hdr">Urgencia alta</div><div class="m-hdr">Urgencia media</div><div class="m-lbl">Impacto<br>muy alto</div><div class="mc mc-aa"><span class="mc-n">'+D.ma_alta+'</span><span class="mc-l">acción inmediata</span></div><div class="mc mc-am"><span class="mc-n">'+D.ma_med+'</span><span class="mc-l">'+(D.ma_med?'planificar':'—')+'</span></div><div class="m-lbl">Impacto<br>alto</div><div class="mc mc-ma"><span class="mc-n">'+D.alt_alta+'</span><span class="mc-l">monitorear</span></div><div class="mc mc-mm"><span class="mc-n">'+D.alt_med+'</span><span class="mc-l">backlog</span></div></div>';
+  var aKeys=Object.keys(D.area_data),aVals=Object.values(D.area_data),aTotal=aVals.reduce((a,b)=>a+b,0);
+  document.getElementById('area-legend').innerHTML=aKeys.map((k,i)=>'<div class="dl"><div class="dl-dot" style="background:'+(AREA_COLORS[i]||'#ccc')+'"></div><span style="flex:1">'+k+'</span><strong>'+aVals[i]+'</strong><span style="color:var(--gray400);font-size:10px">'+Math.round(aVals[i]/aTotal*100)+'%</span></div>').join('');
+  new Chart(document.getElementById('areaChart'),{type:'doughnut',data:{labels:aKeys,datasets:[{data:aVals,backgroundColor:AREA_COLORS.slice(0,aKeys.length),borderWidth:2,borderColor:'#fff'}]},options:{responsive:true,maintainAspectRatio:false,cutout:'68%',plugins:{legend:{display:false}}}});
+  var paisMax=Math.max(...Object.values(D.pais_counts));
+  document.getElementById('pais-bars').innerHTML=Object.entries(D.pais_counts).sort((a,b)=>b[1]-a[1]).map(e=>'<div class="pb-row"><span class="pb-lbl">'+e[0]+'</span><div class="pb-track"><div class="pb-fill" style="width:'+Math.round(e[1]/paisMax*100)+'%;background:'+pc(e[0])+'"></div></div><span class="pb-n">'+e[1]+'</span></div>').join('');
+  document.getElementById('map-legend').innerHTML=Object.entries(D.pais_counts).sort((a,b)=>b[1]-a[1]).map(e=>'<div class="leg-item"><div class="leg-dot" style="background:'+pc(e[0])+'"></div>'+e[0]+' '+e[1]+'</div>').join('');
+  var maxN=Math.max(...D.top10.map(r=>r.n||0));
+  document.getElementById('top10-tbody').innerHTML=D.top10.map((r,i)=>'<tr style="background:'+(i%2===0?'#fff':'#fafbfc')+'"><td style="text-align:center;color:var(--gray400);font-weight:600;font-size:11px">'+r.r+'</td><td class="fn">'+r.feat+'</td><td style="text-align:center"><span style="font-weight:800;font-size:16px;color:'+nColor(r.n,maxN)+'">'+r.n+'</span></td><td style="text-align:center">'+pill(r.urg,'urg')+'</td><td style="text-align:center">'+pill(r.imp,'imp')+'</td><td style="font-size:11.5px;color:var(--gray500);white-space:nowrap">'+(r.seg||'')+'</td><td class="fres">'+(r.res||'')+'</td></tr>').join('');
+  document.getElementById('comp-grid').innerHTML=D.comp_rows.map(r=>'<div class="comp-card"><div class="comp-src">'+(r.fuente||'')+'</div><div class="comp-topico">'+(r.topico||'')+'</div><div class="comp-res">'+(r.resumen||'').slice(0,200)+'</div><div class="comp-tags">'+pill(r.impacto,'imp')+' '+pill(r.urgencia,'urg')+' <span class="chip">'+(r.feature_tipificada||'')+'</span></div></div>').join('');
+  document.getElementById('new-grid').innerHTML=D.nuevas.map(f=>'<div class="new-card"><div class="nc-name">'+(f.feature||'')+'</div><div class="nc-pais">'+(f.paises_activos||'')+'</div><div class="nc-imp">'+(f.impacto_actual||'')+' · '+(f.urgencia_actual||'')+'</div></div>').join('');
+}
+
+function renderFeatures(D){
+  _featsOk=true;
+  var top10=D.top_feats.slice(0,10);
+  new Chart(document.getElementById('featBar'),{type:'bar',data:{labels:top10.map(f=>{var s=f.feature||'';return s.length>28?s.slice(0,28)+'…':s;}),datasets:[{data:top10.map(f=>f.señales_totales||0),backgroundColor:top10.map(f=>f.impacto_actual==='muy_alto'?'#2563a8':'#6b9fd4'),borderRadius:3}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{font:{size:10}}},y:{ticks:{font:{size:10}}}}}});
+  var vKeys=Object.keys(D.vert_data),vVals=Object.values(D.vert_data);
+  new Chart(document.getElementById('vertChart'),{type:'bar',data:{labels:vKeys,datasets:[{data:vVals,backgroundColor:'#2563a8',borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{font:{size:10},maxRotation:30}},y:{ticks:{font:{size:10}}}}}});
+  var gp=document.getElementById('geo-pres');
+  D.top_feats.filter(f=>f.impacto_actual==='muy_alto').forEach(f=>{gp.innerHTML+='<div style="margin-bottom:9px"><div style="font-size:12px;font-weight:600;color:var(--navy);margin-bottom:3px">'+f.feature+'</div><div style="display:flex;flex-wrap:wrap;gap:3px">'+(f.paises_activos||'').split(', ').map(p=>'<span style="font-size:10px;padding:1px 6px;background:var(--teal-light);color:#007a72;border-radius:3px">'+p+'</span>').join('')+'</div></div>';});
+  renderFeatTable(D.top_feats,D);
+}
+
+function renderFeatTable(rows,D){
+  var maxN=Math.max(...rows.map(r=>parseInt(r.señales_totales)||0));
+  var tb=document.getElementById('feat-tbody');tb.innerHTML='';
+  rows.forEach((f,i)=>{
+    var n=parseInt(f.señales_totales)||0,bW=maxN>0?Math.round(n/maxN*100):0;
+    var tags=(f.paises_activos||'').split(', ').map(p=>'<span style="font-size:9.5px;padding:1px 5px;background:var(--gray100);border-radius:2px;color:var(--gray600)">'+p.slice(0,3)+'</span>').join(' ');
+    tb.innerHTML+='<tr style="background:'+(i%2===0?'#fff':'#fafbfc')+'"><td class="fn">'+(f.feature||'')+'</td><td style="text-align:center"><div style="display:flex;align-items:center;gap:6px;justify-content:center"><div style="width:60px;height:5px;background:var(--gray200);border-radius:3px;overflow:hidden"><div style="width:'+bW+'%;height:100%;background:#2563a8;border-radius:3px"></div></div><span style="font-weight:700;font-size:13px;color:'+nColor(n,maxN)+'">'+n+'</span></div></td><td style="text-align:center">'+pill(f.impacto_actual,'imp')+'</td><td style="text-align:center">'+pill(f.urgencia_actual,'urg')+'</td><td>'+pill(f.tendencia||'','tend')+'</td><td><div style="display:flex;flex-wrap:wrap;gap:2px">'+tags+'</div></td><td style="font-size:11px;color:var(--gray400);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(f.fuentes_unicas||'')+'</td></tr>';
+  });
+}
+
+function fImp(v,btn){_fi=v;btn.closest('div').querySelectorAll('.fb').forEach(b=>{if(['Todos','Muy alto','Alto'].includes(b.textContent))b.classList.remove('active');});btn.classList.add('active');applyF();}
+function fTend(v,btn){_ft=v;['f-tall','f-tnew','f-tdwn'].forEach(id=>{var e=document.getElementById(id);if(e)e.classList.remove('active');});btn.classList.add('active');applyF();}
+function applyF(){
+  if(!_D)return;var d=_D.top_feats.slice();
+  if(_fi!=='all')d=d.filter(f=>f.impacto_actual===_fi);
+  if(_ft==='nueva')d=d.filter(f=>(f.tendencia||'').includes('nueva'));
+  if(_ft==='bajando')d=d.filter(f=>(f.tendencia||'').includes('bajando'));
+  renderFeatTable(d,_D);
+}
+
+function drawMap(CD){
+  var cont=document.getElementById('latam-map-wrap'),W=cont.clientWidth||500,H=480;
+  var svg=d3.select('#latam-map-wrap').append('svg').attr('width','100%').attr('height',H).style('display','block');
+  var g=svg.append('g');
+  var proj=d3.geoMercator().center([-65,-18]).scale(W*1.0).translate([W/2,H/2]);
+  var path=d3.geoPath(proj);
+  var isoMap={'032':'Argentina','076':'Brasil','152':'Chile','170':'Colombia','484':'México','604':'Perú'};
+  var colorByIso={};Object.entries(isoMap).forEach(e=>colorByIso[e[0]]=(CD[e[1]]&&CD[e[1]].color)||'#888');
+  var tt=document.getElementById('map-tt');
+  var zoom=d3.zoom().scaleExtent([0.5,8]).on('zoom',e=>{g.attr('transform',e.transform);g.selectAll('.clbl').attr('font-size',d=>colorByIso[d.id]?Math.max(9,13/e.transform.k)+'px':'0');});
+  svg.call(zoom);
+  document.getElementById('zi').onclick=()=>svg.transition().duration(280).call(zoom.scaleBy,1.5);
+  document.getElementById('zo').onclick=()=>svg.transition().duration(280).call(zoom.scaleBy,0.67);
+  document.getElementById('zr').onclick=()=>svg.transition().duration(350).call(zoom.transform,d3.zoomIdentity);
+  d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json').then(world=>{
+    var feats=topojson.feature(world,world.objects.countries).features;
+    g.selectAll('path').data(feats).join('path').attr('d',path)
+      .attr('fill',d=>colorByIso[d.id]||'#d4dde3').attr('stroke','#fff')
+      .attr('stroke-width',d=>colorByIso[d.id]?0.8:0.3).style('cursor',d=>colorByIso[d.id]?'pointer':'default')
+      .on('mouseover',(ev,d)=>{
+        var nm=isoMap[d.id];if(!nm)return;
+        d3.select(ev.currentTarget).attr('fill',()=>{var c=d3.color(colorByIso[d.id]);c.opacity=0.75;return c;});
+        var cd=CD[nm]||{};
+        tt.innerHTML='<h4><span style="width:10px;height:10px;border-radius:2px;background:'+(cd.color||'#888')+';display:inline-block;flex-shrink:0"></span>'+nm+'</h4><div class="tt-meta">'+(cd.s||0)+' señales · '+(cd.urgentes||0)+' urgentes</div><div class="tt-sec">Top features</div>'+(cd.feats||[]).map(f=>'<div class="tt-row"><span class="tt-n">'+f.n+'</span><span class="tt-f">'+f.f+'</span></div>').join('');
+        tt.style.display='block';posT(ev,cont,W,H);
+      })
+      .on('mousemove',(ev)=>posT(ev,cont,W,H))
+      .on('mouseout',(ev,d)=>{if(colorByIso[d.id])d3.select(ev.currentTarget).attr('fill',colorByIso[d.id]);tt.style.display='none';});
+    var lblCoords={'032':[-64,-36],'076':[-52,-12],'152':[-70,-30],'170':[-74,4],'484':[-102,24],'604':[-76,-9]};
+    Object.entries(lblCoords).forEach(e=>{
+      var nm=isoMap[e[0]];if(!nm||!CD[nm])return;
+      var xy=proj([e[1][0],e[1][1]]);
+      g.append('text').datum({id:e[0]}).attr('class','clbl').attr('x',xy[0]).attr('y',xy[1]).text(CD[nm].s).attr('text-anchor','middle').attr('font-size','13px').attr('font-weight','700').attr('fill','white').attr('pointer-events','none');
+    });
+  });
+}
+function posT(ev,cont,W,H){var rc=cont.getBoundingClientRect(),lx=ev.clientX-rc.left+14,ty=ev.clientY-rc.top-20;if(lx+240>W)lx=ev.clientX-rc.left-250;if(ty+200>H)ty=H-210;if(ty<5)ty=5;var tt=document.getElementById('map-tt');tt.style.left=lx+'px';tt.style.top=ty+'px';}
+
+// SIGNALS
+function pill2(v,type){
+  if(type==='imp') return v==='muy_alto'?'<span class="pill pill-muyalto" style="font-size:10px;padding:2px 7px">Muy alto</span>':'<span class="pill pill-alto" style="font-size:10px;padding:2px 7px">Alto</span>';
+  return v==='alta'?'<span class="pill pill-alta" style="font-size:10px;padding:2px 7px">Alta</span>':'<span class="pill pill-media" style="font-size:10px;padding:2px 7px">Media</span>';
+}
+function renderSignalsTable(data){
+  var tb=document.getElementById('signals-tbody');if(!tb)return;
+  tb.innerHTML='';
+  document.getElementById('sig-count').textContent=data.length+' señales';
+  data.forEach((s,i)=>{
+    var bg=i%2===0?'#fff':'#fafbfc';
+    tb.innerHTML+='<tr style="background:'+bg+'"><td style="font-size:11px;font-weight:600;color:var(--gray500);white-space:nowrap">'+(s.fuente||'')+'</td><td><span style="font-size:10px;padding:2px 6px;border-radius:3px;background:var(--gray100);color:var(--gray600);white-space:nowrap">'+(s.pais||'')+'</span></td><td style="font-size:11.5px;font-weight:500;color:var(--navy)">'+(s.feature||'')+'</td><td style="text-align:center">'+pill2(s.impacto,'imp')+'</td><td style="text-align:center">'+pill2(s.urgencia,'urg')+'</td><td style="font-size:11px;color:var(--gray500);white-space:nowrap">'+(s.vertical||'')+'</td><td style="font-size:11.5px;color:var(--navy);font-weight:500;line-height:1.4;max-width:200px">'+(s.topico||'')+'</td><td style="font-size:11.5px;color:var(--gray500);line-height:1.6;min-width:320px">'+(s.resumen||'')+'</td></tr>';
+  });
+}
+function applySignalFilters(){
+  var fp=document.getElementById('f-pais').value,fi=document.getElementById('f-impact').value;
+  var fu=document.getElementById('f-urgencia').value,fv=document.getElementById('f-vertical').value;
+  var ff=document.getElementById('f-feature').value;
+  renderSignalsTable(SIGNALS.filter(s=>(!fp||s.pais===fp)&&(!fi||s.impacto===fi)&&(!fu||s.urgencia===fu)&&(!fv||s.vertical===fv)&&(!ff||s.feature===ff)));
+}
+function clearSignalFilters(){
+  ['f-pais','f-impact','f-urgencia','f-vertical','f-feature'].forEach(id=>{var e=document.getElementById(id);if(e)e.value='';});
+  renderSignalsTable(SIGNALS);
+}
+function initSignals(){_sigsOk=true;setTimeout(()=>renderSignalsTable(SIGNALS),50);}
+function dlSignalsXL(){
+  var fp=document.getElementById('f-pais').value,fi=document.getElementById('f-impact').value;
+  var fu=document.getElementById('f-urgencia').value,fv=document.getElementById('f-vertical').value;
+  var ff=document.getElementById('f-feature').value;
+  var data=SIGNALS.filter(s=>(!fp||s.pais===fp)&&(!fi||s.impacto===fi)&&(!fu||s.urgencia===fu)&&(!fv||s.vertical===fv)&&(!ff||s.feature===ff));
+  var rows=data.map(s=>({'Fuente':s.fuente||'','País':s.pais||'','Feature':s.feature||'','Impacto':s.impacto||'','Urgencia':s.urgencia||'','Segmento':s.vertical||'','Tipo':s.tipo||'','Área':s.area||'','Score':s.score||'','Tópico':s.topico||'','Resumen':s.resumen||''}));
+  var ws=XLSX.utils.json_to_sheet(rows);
+  ws['!cols']=[{wch:14},{wch:10},{wch:32},{wch:10},{wch:10},{wch:22},{wch:16},{wch:14},{wch:7},{wch:60},{wch:80}];
+  var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Señales CI LATAM');
+  XLSX.writeFile(wb,'OCASA_Señales_CI_LATAM.xlsx');
+}
+
+// SENTIMENT ENGINE
+const CL_GROUPS=[
+  {label:'eCommerce / Marketplaces',keys:['ML','Temu','Shein'],color:'#1B4F8A'},
+  {label:'Gobierno / Documentos',keys:['Renaper/DNI','GCBA'],color:'#3A6FA8'},
+  {label:'Bancos / Finanzas',keys:['Banco Ciudad','Banco Macro','Bancos s/e','Mastercard/Visa'],color:'#5B8FBF'},
+  {label:'Indumentaria / Deporte',keys:['Nike','Adidas','Topper','Puma','Decathlon','La Martina'],color:'#00A499'},
+  {label:'Logística / Correos',keys:['Correo Arg. / Competidores','MailAmericas','OCASA (interno)'],color:'#7EA8C4'},
+  {label:'Otros identificados',keys:['Newsan','Otros (menor volumen)'],color:'#B8CDD9'},
+];
+const CL_ALL_KEYS=CL_GROUPS.flatMap(g=>g.keys).concat(['Sin identificar']);
+const CL_LABEL={ML:'MercadoLibre'};
+CL_ALL_KEYS.forEach(k=>{if(!CL_LABEL[k])CL_LABEL[k]=k;});
+const PC={'Entrega no realizada / visita falsa':'red','Demoras y retrasos':'red','Pérdida o robo de paquete':'red','Atención al cliente deficiente':'a','Error en dirección de entrega':'a','Falta de comunicación y notificaciones':'a','Dificultad para retirar en sucursal':'a'};
+let D=[],F=[],scharts={};
+
+function normCliente(c){
+  if(!c||c==='nan'||c==='')return 'Sin identificar';
+  const cl=c.toLowerCase();
+  if(cl.includes('mercadolibre'))return 'ML';
+  if(cl.includes('temu'))return 'Temu';
+  if(cl.includes('renaper')||(cl.includes('dni')&&!cl.includes('banco')))return 'Renaper/DNI';
+  if(cl.includes('shein'))return 'Shein';
+  if(cl.includes('nike'))return 'Nike';
+  if(cl.includes('adidas'))return 'Adidas';
+  if(cl.includes('topper'))return 'Topper';
+  if(cl.includes('decathlon'))return 'Decathlon';
+  if(cl.includes('newsan'))return 'Newsan';
+  if(cl.includes('la martina')||cl.includes('martina'))return 'La Martina';
+  if(cl.includes('mail america')||cl.includes('mailamerica'))return 'MailAmericas';
+  if(cl.includes('mastercard')||cl.includes('visa'))return 'Mastercard/Visa';
+  if(cl.includes('ciudad')&&cl.includes('banco'))return 'Banco Ciudad';
+  if((cl.includes('gobierno')||cl.includes('gcba'))&&!cl.includes('banco'))return 'GCBA';
+  if(cl.includes('macro'))return 'Banco Macro';
+  if(cl.includes('banco'))return 'Bancos s/e';
+  if(cl.includes('correo argentino')||cl.includes('andreani')||cl==='oca')return 'Correo Arg. / Competidores';
+  if(cl.includes('ocasa'))return 'OCASA (interno)';
+  if(cl.includes('puma'))return 'Puma';
+  return 'Otros (menor volumen)';
+}
+
+function processRows(rows){
+  return rows.map(r=>{
+    const fecha=r['fecha_estimada']||'';
+    const ym=fecha.length>=7?fecha.substr(0,7):'';
+    const yr=ym?parseInt(ym.substr(0,4)):0,mo=ym?parseInt(ym.substr(5,2)):0;
+    const stMatch=(r['estrellas']||'').match(/(\d+)/);
+    return {f:fecha,ym,yr,mo,au:(r['autor']||'Anónimo').substr(0,30),rv:(r['review']||'').substr(0,300),rs:(r['resumen_review']||'').substr(0,150),st:stMatch?parseInt(stMatch[1]):0,se:r['sentimiento']||'',pd:r['punto_de_dolor']||'Sin clasificar',sv:r['servicio']||'Sin clasificar',sc:r['sucursal']||'–',fu:r['fuente']||'',cn:normCliente(r['cliente'])};
+  }).filter(r=>r.f);
+}
+
+async function loadSentData(){
+  showOverlay('Conectando datos de sentimiento…');
+  try{
+    const url=SHEET_CSV_URL+(SHEET_CSV_URL.includes('?')?'&':'?')+'_t='+Date.now();
+    const rows=await new Promise((res,rej)=>Papa.parse(url,{download:true,header:true,skipEmptyLines:true,complete:r=>res(r.data),error:e=>rej(e)}));
+    D=processRows(rows);if(!D.length)throw new Error('Sin datos');
+    const yrs=[...new Set(D.map(r=>r.yr))].filter(Boolean).sort();
+    const fy=document.getElementById('f-yr');fy.innerHTML='<option value="">Todos los años</option>';
+    yrs.forEach(y=>{const o=document.createElement('option');o.value=y;o.textContent=y;fy.appendChild(o);});
+    const sucs=[...new Set(D.map(r=>r.sc).filter(s=>s&&s!=='–'))].sort();
+    const fsc=document.getElementById('f-sc');fsc.innerHTML='<option value="">Todas las sucursales</option>';
+    sucs.forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s;fsc.appendChild(o);});
+    const now=new Date(),ts=now.toLocaleString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+    document.getElementById('sftr-count').textContent=D.length.toLocaleString('es')+' reviews';
+    document.getElementById('sftr-updated').textContent='Act. '+ts;
+    F=[...D];apf();hideOverlay();
+  }catch(e){hideOverlay();console.error('Sentiment load error:',e);}
+}
+
+function showOverlay(msg){document.getElementById('overlay').classList.remove('hidden');var s=document.getElementById('ov-sub');if(s)s.textContent=msg||'';}
+function hideOverlay(){document.getElementById('overlay').classList.add('hidden');}
+function gf(){return{fu:document.getElementById('f-fu').value,sc:document.getElementById('f-sc').value,cl:document.getElementById('f-cl').value,se:document.getElementById('f-se').value,yr:document.getElementById('f-yr').value,mo:document.getElementById('f-mo').value};}
+function apf(){const f=gf();F=D.filter(r=>{if(f.fu&&r.fu!==f.fu)return false;if(f.sc&&r.sc!==f.sc)return false;if(f.cl&&r.cn!==f.cl)return false;if(f.se&&r.se!==f.se)return false;if(f.yr&&String(r.yr)!==f.yr)return false;if(f.mo&&String(r.mo)!==f.mo)return false;return true;});ra();}
+function rst(){['f-fu','f-sc','f-cl','f-se','f-yr','f-mo'].forEach(id=>document.getElementById(id).value='');apf();}
+function smkC(id,cfg){if(scharts[id]){scharts[id].destroy();delete scharts[id];}const el=document.getElementById(id);if(!el)return;scharts[id]=new Chart(el,cfg);}
+function sng(){return{grid:{color:'rgba(228,233,240,.55)'},ticks:{color:'#9aa0a6'}};}
+function ra(){const as=document.querySelector('.sec.on');if(!as)return;const id=as.id.replace('sec-','');if(id==='ov')rnOV();else if(id==='pd')rnPD();else if(id==='cl')rnCL();else if(id==='rv')rnVB();}
+
+function rnOV(){
+  const d=F,n=d.length;if(!n)return;
+  const neg=d.filter(r=>r.se==='Negativo').length,pos=d.filter(r=>r.se==='Positivo').length,neu=d.filter(r=>r.se==='Neutro').length;
+  const rated=d.filter(r=>r.st>0),det=d.filter(r=>r.st>0&&r.st<=2).length,pro=d.filter(r=>r.st>=4).length;
+  const nps=((pro-det)/n*100).toFixed(1),avg=rated.length?(rated.reduce((a,r)=>a+r.st,0)/rated.length).toFixed(2):'–';
+  const set=(id,v)=>{var e=document.getElementById(id);if(e)e.textContent=v;};
+  set('k-tot',n.toLocaleString('es'));set('k-nps',(nps>0?'+':'')+nps);set('k-nps2','Det. '+(det/n*100).toFixed(1)+'% · Pro. '+(pro/n*100).toFixed(1)+'%');
+  set('k-neg',(neg/n*100).toFixed(1)+'%');set('k-neg2',neg.toLocaleString('es')+' reviews');set('k-pos',(pos/n*100).toFixed(1)+'%');set('k-pos2',pos.toLocaleString('es')+' reviews');set('k-st',avg);
+  smkC('cSent',{type:'doughnut',data:{labels:['Negativo','Positivo','Neutro'],datasets:[{data:[neg,pos,neu],backgroundColor:['#E53E3E','#059669','#D97706'],borderWidth:0}]},options:{cutout:'65%',plugins:{legend:{position:'right'},tooltip:{callbacks:{label:c=>`${c.label}: ${c.raw.toLocaleString('es')} (${(c.raw/n*100).toFixed(1)}%)`}}}}});
+  const gm=d.filter(r=>r.fu==='google_maps').length,tqs=d.filter(r=>r.fu==='tuquejasuma').length;
+  smkC('cFuente',{type:'doughnut',data:{labels:['Google Maps','TuQuejaSuma'],datasets:[{data:[gm,tqs],backgroundColor:['#1B4F8A','#5B8FBF'],borderWidth:0}]},options:{cutout:'65%',plugins:{legend:{position:'right'},tooltip:{callbacks:{label:c=>`${c.label}: ${c.raw.toLocaleString('es')} (${n?(c.raw/n*100).toFixed(1):0}%)`}}}}});
+  const allYMs=[...new Set(d.map(r=>r.ym).filter(Boolean))].sort(),last13=allYMs.slice(-13);
+  const mm={};last13.forEach(m=>mm[m]=0);d.filter(r=>r.se==='Negativo'&&last13.includes(r.ym)).forEach(r=>mm[r.ym]++);
+  const mn=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  smkC('cTrend',{type:'line',data:{labels:last13.map(m=>{const[y,mo]=m.split('-');return mn[parseInt(mo)-1]+' '+y.slice(2);}),datasets:[{label:'Negativas',data:last13.map(m=>mm[m]),borderColor:'#1B4F8A',backgroundColor:'rgba(27,79,138,.08)',fill:true,tension:.35,pointRadius:4,pointBackgroundColor:'#E53E3E',borderWidth:2}]},options:{plugins:{legend:{position:'top',align:'end'}},scales:{x:{...sng(),grid:{display:false}},y:{...sng()}}}});
+  const wcel=document.getElementById('wc');
+  if(wcel&&!wcel.dataset.b){wcel.dataset.b='1';[{w:'demora',s:17},{w:'visita falsa',s:15},{w:'domicilio',s:13},{w:'entrega',s:12},{w:'paquete',s:11},{w:'reclamo',s:11},{w:'mercadolibre',s:10},{w:'temu',s:10},{w:'sucursal',s:9},{w:'seguimiento',s:9},{w:'entrega fallida',s:8},{w:'whatsapp',s:7},{w:'dni',s:6}].forEach((x,i)=>{const sp=document.createElement('span');sp.className='wt';sp.textContent=x.w;sp.style.setProperty('--fs',x.s+'px');if(i<3){sp.style.background='rgba(0,164,153,.08)';sp.style.borderColor='rgba(0,164,153,.3)';sp.style.color='#00A499';}else if(i<6){sp.style.background='rgba(229,62,62,.06)';sp.style.borderColor='rgba(229,62,62,.2)';sp.style.color='#E53E3E';}wcel.appendChild(sp);});}
+}
+
+function rnPD(){
+  const d=F.filter(r=>r.se!=='Positivo'&&r.pd!=='Experiencia positiva');
+  const cnt={};d.forEach(r=>{if(r.pd)cnt[r.pd]=(cnt[r.pd]||0)+1;});
+  const srt=Object.entries(cnt).sort((a,b)=>b[1]-a[1]),tot=srt.reduce((a,[,v])=>a+v,0);
+  var el=document.getElementById('pd-tot');if(el)el.textContent='· '+tot.toLocaleString('es')+' reviews';
+  const pb=document.getElementById('pdb');if(!pb)return;pb.innerHTML='';
+  const mx=srt[0]?srt[0][1]:1;
+  srt.forEach(([lbl,v])=>{
+    const p=Math.round(v/mx*100),col=PC[lbl]||'t';
+    const div=document.createElement('div');div.className='pb-s';
+    div.innerHTML=`<span class="pb-l" title="${lbl}">${lbl}</span><div class="pb-t"><div class="pb-f ${col}" style="width:${p}%"></div></div><span class="pb-n">${v.toLocaleString('es')}</span><span class="pb-p">${(v/tot*100).toFixed(1)}%</span>`;
+    div.onclick=()=>selPain(lbl);pb.appendChild(div);
+  });
+  const sel=document.getElementById('f-pdv');if(!sel)return;const prev=sel.value;
+  sel.innerHTML='<option value="">— Punto de dolor —</option>';
+  srt.forEach(([lbl])=>sel.innerHTML+=`<option value="${lbl}"${lbl===prev?' selected':''}>${lbl}</option>`);
+  if(prev)rnRVL();
+  rnPainEvo(d);rnMxCP(d);rnMxSP(d);
+}
+
+function rnPainEvo(d){
+  const cnt={};D.filter(r=>r.se!=='Positivo'&&r.pd&&r.pd!=='Experiencia positiva').forEach(r=>cnt[r.pd]=(cnt[r.pd]||0)+1);
+  const top5=Object.entries(cnt).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([k])=>k);
+  const COLORS=['#1B4F8A','#5B8FBF','#9aa0a6','#00A499','#D0DBE8'];
+  const years=[...new Set(D.map(r=>r.yr).filter(Boolean))].sort();
+  smkC('cPainEvo',{type:'line',data:{labels:years.map(String),datasets:top5.map((p,i)=>({label:p.length>30?p.substr(0,28)+'…':p,data:years.map(y=>D.filter(r=>r.yr===y&&r.pd===p).length),borderColor:COLORS[i],backgroundColor:COLORS[i]+'22',fill:false,tension:.35,pointRadius:4,pointBackgroundColor:COLORS[i],borderWidth:2.5}))},options:{plugins:{legend:{position:'bottom',labels:{font:{size:10},padding:9,boxWidth:11}},tooltip:{mode:'index',intersect:false}},scales:{x:{...sng(),grid:{display:false}},y:{...sng(),beginAtZero:true}},interaction:{mode:'index',intersect:false}}});
+}
+
+function selPain(lbl){var s=document.getElementById('f-pdv');if(s)s.value=lbl;var e=document.getElementById('pd-sel-lbl');if(e)e.textContent=lbl;rnRVL();}
+function rnRVL(){
+  const lbl=document.getElementById('f-pdv').value,w=document.getElementById('rvl');if(!w)return;
+  if(!lbl){w.innerHTML='<div class="rv-empty">Seleccioná un punto de dolor.</div>';return;}
+  var e=document.getElementById('pd-sel-lbl');if(e)e.textContent=lbl;
+  const items=F.filter(r=>r.pd===lbl).slice(0,15);
+  if(!items.length){w.innerHTML='<div class="rv-empty">Sin reviews.</div>';return;}
+  w.innerHTML=items.map(r=>`<div class="rv${r.se==='Positivo'?' pos':''}"><div class="rv-h"><span class="rv-a">${r.au}</span><div class="rv-m"><span>${r.sc}</span><span>·</span><span>${r.f}</span></div></div><div class="rv-tx">${r.rs||r.rv}</div><div class="rv-tgs"><span class="rv-tg">${r.fu==='google_maps'?'Google Maps':'TuQuejaSuma'}</span><span class="rv-tg">${CL_LABEL[r.cn]||r.cn}</span><span class="rv-tg">★${r.st}</span></div></div>`).join('');
+}
+function rnMxCP(d){
+  const topC=['ML','Temu','Renaper/DNI','Shein','Nike','Adidas','Banco Ciudad'];
+  const pc2={};d.forEach(r=>{if(r.pd&&r.pd!=='Experiencia positiva')pc2[r.pd]=(pc2[r.pd]||0)+1;});
+  const tp=Object.entries(pc2).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([k])=>k);
+  const mx2={};d.forEach(r=>{if(!topC.includes(r.cn)||!tp.includes(r.pd))return;if(!mx2[r.cn])mx2[r.cn]={};mx2[r.cn][r.pd]=(mx2[r.cn][r.pd]||0)+1;});
+  const mv=Math.max(...topC.flatMap(c=>tp.map(p=>mx2[c]?.[p]||0)),1);
+  let h='<table class="mxt"><thead><tr><th>Cliente</th>'+tp.map(p=>`<th title="${p}">${p.length>14?p.substr(0,12)+'…':p}</th>`).join('')+'</tr></thead><tbody>';
+  topC.forEach(c=>{h+=`<tr><td class="rh">${CL_LABEL[c]||c}</td>`;tp.forEach(p=>{const v=mx2[c]?.[p]||0,alpha=v?(v/mv*.32+.04).toFixed(2):0;h+=v?`<td style="background:rgba(229,62,62,${alpha});color:${v>20?'#b91c1c':'var(--gray600)'};">${v}</td>`:`<td class="mc0">–</td>`;});h+='</tr>';});
+  var el=document.getElementById('mx-cp');if(el)el.innerHTML=h+'</tbody></table>';
+}
+function rnMxSP(d){
+  const sc2={};d.forEach(r=>sc2[r.sv]=(sc2[r.sv]||0)+1);
+  const ts=Object.entries(sc2).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([k])=>k);
+  const pc2={};d.forEach(r=>{if(r.pd&&r.pd!=='Experiencia positiva')pc2[r.pd]=(pc2[r.pd]||0)+1;});
+  const tp=Object.entries(pc2).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([k])=>k);
+  const mx2={};d.forEach(r=>{if(!ts.includes(r.sv)||!tp.includes(r.pd))return;if(!mx2[r.sv])mx2[r.sv]={};mx2[r.sv][r.pd]=(mx2[r.sv][r.pd]||0)+1;});
+  const mv=Math.max(...ts.flatMap(s=>tp.map(p=>mx2[s]?.[p]||0)),1);
+  let h='<table class="mxt"><thead><tr><th>Servicio</th>'+tp.map(p=>`<th title="${p}">${p.length>13?p.substr(0,11)+'…':p}</th>`).join('')+'</tr></thead><tbody>';
+  ts.forEach(s=>{const sl=s.length>18?s.substr(0,16)+'…':s;h+=`<tr><td class="rh" title="${s}">${sl}</td>`;tp.forEach(p=>{const v=mx2[s]?.[p]||0,alpha=v?(v/mv*.32+.04).toFixed(2):0;h+=v?`<td style="background:rgba(217,119,6,${alpha});color:${v>50?'#92400e':'var(--gray600)'};">${v}</td>`:`<td class="mc0">–</td>`;});h+='</tr>';});
+  var el=document.getElementById('mx-sp');if(el)el.innerHTML=h+'</tbody></table>';
+}
+
+function rnCL(){
+  const d=F,tc={},nc={};CL_ALL_KEYS.forEach(k=>{tc[k]=0;nc[k]=0;});
+  d.forEach(r=>{if(CL_ALL_KEYS.includes(r.cn)){tc[r.cn]++;if(r.se==='Negativo')nc[r.cn]++;}});
+  const top4=CL_ALL_KEYS.filter(k=>k!=='Sin identificar'&&tc[k]>0).sort((a,b)=>tc[b]-tc[a]).slice(0,4);
+  var el=document.getElementById('kpi-cl');
+  if(el)el.innerHTML=top4.map((c,i)=>`<div class="kc"><div class="kl">Cliente #${i+1}</div><div class="kv" style="font-size:15px;">${CL_LABEL[c]||c}</div><div class="ks">${(tc[c]||0).toLocaleString('es')} reviews · ${nc[c]||0} neg.</div></div>`).join('');
+  const cb=document.getElementById('cbl');if(!cb)return;cb.innerHTML='';
+  const allWithData=CL_ALL_KEYS.filter(k=>k!=='Sin identificar'&&tc[k]>0);
+  const mvId=Math.max(...allWithData.map(k=>tc[k]),1);
+  CL_GROUPS.forEach(g=>{
+    const gKeys=g.keys.filter(k=>tc[k]>0);if(!gKeys.length)return;
+    cb.innerHTML+=`<div class="cl-sec-hdr">${g.label}</div>`;
+    gKeys.sort((a,b)=>tc[b]-tc[a]).forEach(k=>{
+      const tot=tc[k],neg=nc[k],pctBar=Math.round(tot/mvId*100),negPct=tot?Math.round(neg/tot*100):0;
+      const negCol=negPct>90?'#E53E3E':negPct>70?'#D97706':'#059669';
+      cb.innerHTML+=`<div class="cb"><span class="cb-n">${CL_LABEL[k]||k}</span><div class="cb-t"><div class="cb-f" style="width:${pctBar}%;background:${g.color};opacity:.75;"></div></div><span class="cb-v">${tot}</span><span style="font-size:9.5px;color:${negCol};min-width:50px;text-align:right;font-family:monospace;">${negPct}% neg</span></div>`;
+    });
+  });
+  if(tc['Sin identificar']>0){const tot=tc['Sin identificar'],negPct=tot?Math.round(nc['Sin identificar']/tot*100):0;cb.innerHTML+=`<div class="cl-sec-hdr" style="margin-top:7px;">Sin cliente registrado</div><div class="cb"><span class="cb-n dim">Sin identificar</span><div class="cb-t"><div class="cb-f" style="width:100%;background:#9aa0a6;opacity:.3;"></div></div><span class="cb-v" style="color:var(--gray400);">${tot.toLocaleString('es')}</span><span style="font-size:9.5px;color:var(--gray400);min-width:50px;text-align:right;font-family:monospace;">${negPct}% neg</span></div>`;}
+  const sel=document.getElementById('f-clv');if(!sel)return;const prev=sel.value;
+  sel.innerHTML='<option value="">— Cliente —</option>';
+  CL_GROUPS.forEach(g=>{const gKeys=g.keys.filter(k=>tc[k]>0);if(!gKeys.length)return;sel.innerHTML+=`<optgroup label="${g.label}">`;gKeys.sort((a,b)=>tc[b]-tc[a]).forEach(k=>sel.innerHTML+=`<option value="${k}"${k===prev?' selected':''}>${CL_LABEL[k]||k} (${tc[k]})</option>`);sel.innerHTML+='</optgroup>';});
+  if(tc['Sin identificar']>0)sel.innerHTML+=`<option value="Sin identificar"${'Sin identificar'===prev?' selected':''}>Sin identificar (${tc['Sin identificar'].toLocaleString('es')})</option>`;
+  if(prev)rnRVCL();
+}
+function rnRVCL(){
+  const lbl=document.getElementById('f-clv').value,w=document.getElementById('rvcl');if(!w)return;
+  if(!lbl){w.innerHTML='<div class="rv-empty">Seleccioná un cliente.</div>';return;}
+  var e=document.getElementById('cl-sel-lbl');if(e)e.textContent=CL_LABEL[lbl]||lbl;
+  const items=F.filter(r=>r.cn===lbl).slice(0,15);
+  if(!items.length){w.innerHTML='<div class="rv-empty">Sin reviews.</div>';return;}
+  w.innerHTML=items.map(r=>`<div class="rv${r.se==='Positivo'?' pos':''}"><div class="rv-h"><span class="rv-a">${r.au}</span><div class="rv-m"><span>${r.sc}</span><span>·</span><span>${r.f}</span></div></div><div class="rv-tx">${r.rs||r.rv}</div><div class="rv-tgs"><span class="rv-tg">${r.pd}</span><span class="rv-tg">${r.fu==='google_maps'?'Google Maps':'TuQuejaSuma'}</span><span class="rv-tg">★${r.st}</span></div></div>`).join('');
+}
+
+const SP={Negativo:'red',Positivo:'grn',Neutro:'amb'};
+function rnVB(){
+  const q=(document.getElementById('vbs').value||'').toLowerCase();
+  let d=F;if(q)d=d.filter(r=>(r.rv||'').toLowerCase().includes(q)||(r.au||'').toLowerCase().includes(q));
+  var e=document.getElementById('vbcnt');if(e)e.textContent=d.length.toLocaleString('es')+' registros';
+  var tb=document.getElementById('vbb');if(!tb)return;
+  tb.innerHTML=d.slice(0,500).map(r=>`<tr><td style="white-space:nowrap">${r.f}</td><td style="white-space:nowrap">${r.au}</td><td>${r.fu==='google_maps'?'Google Maps':'TuQuejaSuma'}</td><td>${r.sc}</td><td>${CL_LABEL[r.cn]||r.cn}</td><td>${r.sv}</td><td style="max-width:130px;white-space:normal">${r.pd}</td><td><span class="pl ${SP[r.se]||''}">${r.se}</span></td><td><span class="stars">${'★'.repeat(r.st)}</span></td><td style="font-size:11px;color:var(--gray600);max-width:300px;white-space:normal;line-height:1.45">${r.rv}</td></tr>`).join('');
+  if(d.length>500){const tr=document.createElement('tr');tr.innerHTML=`<td colspan="10" style="text-align:center;padding:11px;color:var(--gray400);font-size:11px;">Mostrando 500 de ${d.length.toLocaleString('es')}. Descargá Excel para el set completo.</td>`;tb.appendChild(tr);}
+}
+function dlXL(){
+  const q=(document.getElementById('vbs').value||'').toLowerCase();
+  let d=F;if(q)d=d.filter(r=>(r.rv||'').toLowerCase().includes(q)||(r.au||'').toLowerCase().includes(q));
+  const rows=d.map(r=>({Fecha:r.f,Autor:r.au,Fuente:r.fu==='google_maps'?'Google Maps':'TuQuejaSuma',Sucursal:r.sc,Cliente:CL_LABEL[r.cn]||r.cn,Servicio:r.sv,'Punto de Dolor':r.pd,Sentimiento:r.se,Estrellas:r.st,'Review Original':r.rv}));
+  const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Reviews OCASA');XLSX.writeFile(wb,'OCASA_Reviews.xlsx');
+}
+
+// BOOTSTRAP
+(function(){
+  loadData().then(D=>{_D=D;renderOverview(D);drawMap(D.country_data);});
+  loadSentData();
+})();
+</script>
+</body>
+</html>
