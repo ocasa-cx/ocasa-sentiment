@@ -152,6 +152,10 @@ select.fs:hover,select.fs:focus{border-color:var(--teal)}
 .cw canvas{max-height:210px}
 .cw.tl canvas{max-height:270px}
 .cw.xl canvas{max-height:320px}
+.pe-toggle{display:flex;gap:4px;flex-shrink:0}
+.pe-btn{font-family:'Segoe UI',system-ui,sans-serif;font-size:9.5px;font-weight:700;color:var(--gray500);background:var(--gray50);border:1px solid var(--border);border-radius:6px;padding:4px 10px;cursor:pointer;transition:all .15s;text-transform:uppercase;letter-spacing:.5px}
+.pe-btn:hover{border-color:var(--teal);color:var(--teal)}
+.pe-btn.active{background:var(--teal);border-color:var(--teal);color:#fff}
 .pb-s{display:flex;align-items:center;gap:8px;margin-bottom:7px;cursor:pointer;padding:2px 3px;border-radius:4px;transition:background .15s}
 .pb-s:hover{background:var(--gray50)}
 .pb-l{font-size:11px;color:var(--text);min-width:200px;max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -449,7 +453,7 @@ body{overflow:hidden}
             <div id="rvl"><div class="rv-empty">Seleccion&aacute; un punto de dolor.</div></div>
           </div>
         </div>
-        <div class="cd"><div class="ct2">Evoluci&oacute;n anual &mdash; Top 5 puntos de dolor</div><div class="cw xl"><canvas id="cPainEvo"></canvas></div></div>
+        <div class="cd"><div class="ct2"><span id="pe-title">Evoluci&oacute;n anual &mdash; Top 5 puntos de dolor</span><div class="pe-toggle" id="pe-toggle"><button type="button" class="pe-btn active" data-lvl="yr" onclick="setPainEvoLevel('yr')">A&ntilde;o</button><button type="button" class="pe-btn" data-lvl="ym" onclick="setPainEvoLevel('ym')">Mes</button><button type="button" class="pe-btn" data-lvl="wk" onclick="setPainEvoLevel('wk')">Semana</button></div></div><div class="cw xl"><canvas id="cPainEvo"></canvas></div></div>
         <div class="g2s">
           <div class="cd"><div class="ct2">Matriz: Cliente &times; Punto de Dolor</div><div class="mxw" id="mx-cp"></div></div>
           <div class="cd"><div class="ct2">Matriz: Servicio &times; Punto de Dolor</div><div class="mxw" id="mx-sp"></div></div>
@@ -842,12 +846,62 @@ function rnPD(){
   rnPainEvo(d);rnMxCP(d);rnMxSP(d);
 }
 
+let painEvoLevel='yr',lastPEData=[];
+const MES_ABR=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+
+function isoWeekInfo(dstr){
+  const dt=new Date(dstr+'T00:00:00');
+  if(isNaN(dt))return null;
+  const d=new Date(Date.UTC(dt.getFullYear(),dt.getMonth(),dt.getDate()));
+  const day=(d.getUTCDay()+6)%7;
+  d.setUTCDate(d.getUTCDate()-day+3);
+  const firstThursday=new Date(Date.UTC(d.getUTCFullYear(),0,4));
+  const fdDay=(firstThursday.getUTCDay()+6)%7;
+  firstThursday.setUTCDate(firstThursday.getUTCDate()-fdDay+3);
+  const week=1+Math.round((d-firstThursday)/(7*24*3600*1000));
+  return {isoYear:d.getUTCFullYear(),week};
+}
+
+function setPainEvoLevel(lvl){
+  painEvoLevel=lvl;
+  document.querySelectorAll('#pe-toggle .pe-btn').forEach(b=>b.classList.toggle('active',b.dataset.lvl===lvl));
+  rnPainEvo(lastPEData);
+}
+
 function rnPainEvo(d){
-  const cnt={};D.filter(r=>r.se!=='Positivo'&&r.pd&&r.pd!=='Experiencia positiva').forEach(r=>cnt[r.pd]=(cnt[r.pd]||0)+1);
+  lastPEData=d;
+  const cnt={};d.forEach(r=>{if(r.pd)cnt[r.pd]=(cnt[r.pd]||0)+1;});
   const top5=Object.entries(cnt).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([k])=>k);
   const COLORS=['#1B4F8A','#5B8FBF','#9aa0a6','#00A499','#D0DBE8'];
-  const years=[...new Set(D.map(r=>r.yr).filter(Boolean))].sort();
-  smkC('cPainEvo',{type:'line',data:{labels:years.map(String),datasets:top5.map((p,i)=>({label:p.length>30?p.substr(0,28)+'…':p,data:years.map(y=>D.filter(r=>r.yr===y&&r.pd===p).length),borderColor:COLORS[i],backgroundColor:COLORS[i]+'22',fill:false,tension:.35,pointRadius:4,pointBackgroundColor:COLORS[i],borderWidth:2.5}))},options:{plugins:{legend:{position:'bottom',labels:{font:{size:10},padding:9,boxWidth:11}},tooltip:{mode:'index',intersect:false}},scales:{x:{...sng(),grid:{display:false}},y:{...sng(),beginAtZero:true}},interaction:{mode:'index',intersect:false}}});
+
+  let keys=[],keyOf,labelOf,title;
+  if(painEvoLevel==='ym'){
+    keys=[...new Set(d.map(r=>r.ym).filter(Boolean))].sort();
+    if(keys.length>36)keys=keys.slice(-36);
+    keyOf=r=>r.ym;
+    labelOf=k=>{const p=k.split('-');return MES_ABR[parseInt(p[1],10)-1]+" '"+p[0].slice(2);};
+    title='Evoluci&oacute;n mensual';
+  }else if(painEvoLevel==='wk'){
+    d.forEach(r=>{if(r.f){const wi=isoWeekInfo(r.f);r._wk=wi?wi.isoYear+'-W'+String(wi.week).padStart(2,'0'):'';}});
+    keys=[...new Set(d.map(r=>r._wk).filter(Boolean))].sort();
+    if(keys.length>60)keys=keys.slice(-60);
+    keyOf=r=>r._wk;
+    labelOf=k=>{const p=k.split('-W');return 'S'+parseInt(p[1],10)+" '"+p[0].slice(2);};
+    title='Evoluci&oacute;n semanal';
+  }else{
+    keys=[...new Set(d.map(r=>r.yr).filter(Boolean))].sort((a,b)=>a-b);
+    keyOf=r=>r.yr;
+    labelOf=k=>String(k);
+    title='Evoluci&oacute;n anual';
+  }
+
+  const lblEl=document.getElementById('pe-title');
+  if(lblEl)lblEl.innerHTML=title+' &mdash; Top 5 puntos de dolor';
+
+  const byKey={};
+  d.forEach(r=>{const k=keyOf(r);if(k===undefined||k===''||k===null)return;if(!byKey[k])byKey[k]={};byKey[k][r.pd]=(byKey[k][r.pd]||0)+1;});
+
+  smkC('cPainEvo',{type:'line',data:{labels:keys.map(labelOf),datasets:top5.map((p,i)=>({label:p.length>30?p.substr(0,28)+'…':p,data:keys.map(k=>byKey[k]?.[p]||0),borderColor:COLORS[i],backgroundColor:COLORS[i]+'22',fill:false,tension:.35,pointRadius:painEvoLevel==='yr'?4:2,pointBackgroundColor:COLORS[i],borderWidth:2.5}))},options:{plugins:{legend:{position:'bottom',labels:{font:{size:10},padding:9,boxWidth:11}},tooltip:{mode:'index',intersect:false}},scales:{x:{...sng(),grid:{display:false},ticks:{...sng().ticks,maxRotation:0,autoSkip:true}},y:{...sng(),beginAtZero:true}},interaction:{mode:'index',intersect:false}}});
 }
 
 function selPain(lbl){var s=document.getElementById('f-pdv');if(s)s.value=lbl;var e=document.getElementById('pd-sel-lbl');if(e)e.textContent=lbl;rnRVL();}
